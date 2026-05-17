@@ -8,7 +8,6 @@ export function middleware(request: NextRequest) {
   // Define protected routes
   const isProtectedRoute = 
     pathname.startsWith('/dashboard') || 
-    pathname.startsWith('/watch') || 
     pathname.startsWith('/admin');
 
   if (isProtectedRoute && !token) {
@@ -29,5 +28,5 @@ export function middleware(request: NextRequest) {
 
 // Matching paths
 export const config = {
-  matcher: ['/dashboard/:path*', '/watch/:path*', '/admin/:path*', '/auth'],
+  matcher: ['/dashboard/:path*', '/admin/:path*', '/auth'],
 };
