@@ -495,7 +495,7 @@ export default function DashboardClient({
                         {booking.status !== "cancelled" && (
                           <div className="pt-2 flex justify-between items-center border-t border-white/5">
                             <a 
-                              href={`https://wa.me/${booking.contactPhone.replace(/\+/g, '')}`}
+                              href={`https://wa.me/917059325217?text=Hello%20ViralMMS,%20I%20want%20to%20coordinate%20my%20session%20for%20VIP%20booking%20(ID:%20${booking.id})%20with%20${encodeURIComponent(booking.girl.name)}.`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1"

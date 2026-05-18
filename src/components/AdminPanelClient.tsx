@@ -8,6 +8,7 @@ import {
   Clock, MapPin, Calendar, Image as ImageIcon
 } from "lucide-react";
 import { uploadContent, deleteContent, createCategory, deleteCategory, createGirl, deleteGirl } from "@/app/actions/admin";
+import { updateBookingStatus, deleteBooking } from "@/app/actions/booking";
 import { useRouter } from "next/navigation";
 
 interface Girl {
@@ -45,6 +46,7 @@ interface AdminPanelClientProps {
   catalog: any[];
   categoriesList: any[];
   initialGirls: Girl[];
+  initialBookings: any[];
 }
 
 export default function AdminPanelClient({ 
@@ -52,11 +54,13 @@ export default function AdminPanelClient({
   analytics, 
   catalog,
   categoriesList,
-  initialGirls
+  initialGirls,
+  initialBookings = []
 }: AdminPanelClientProps) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"media" | "models">("media");
+  const [activeTab, setActiveTab] = useState<"media" | "models" | "bookings">("media");
   const [girls, setGirls] = useState<Girl[]>(initialGirls);
+  const [bookings, setBookings] = useState<any[]>(initialBookings);
   
   const [isPending, startTransition] = useTransition();
   const [formError, setFormError] = useState<string | null>(null);
@@ -290,6 +294,30 @@ export default function AdminPanelClient({
     }
   };
 
+  const handleUpdateStatus = async (bookingId: string, newStatus: string) => {
+    const res = await updateBookingStatus(bookingId, newStatus);
+    if (res.success) {
+      setBookings((prev) =>
+        prev.map((b) => (b.id === bookingId ? { ...b, status: newStatus } : b))
+      );
+      router.refresh();
+    } else {
+      alert(res.error || "Failed to update booking status.");
+    }
+  };
+
+  const handleDeleteBooking = async (bookingId: string) => {
+    if (confirm("Are you sure you want to permanently delete this booking record? This cannot be undone.")) {
+      const res = await deleteBooking(bookingId);
+      if (res.success) {
+        setBookings((prev) => prev.filter((b) => b.id !== bookingId));
+        router.refresh();
+      } else {
+        alert(res.error || "Failed to delete booking record.");
+      }
+    }
+  };
+
   const handleModelDrag = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -488,6 +516,16 @@ export default function AdminPanelClient({
           >
             VIP Model Registry
           </button>
+          <button
+            onClick={() => setActiveTab("bookings")}
+            className={`h-9 px-6 rounded-xl font-black text-xs uppercase tracking-wider transition-all duration-300 ${
+              activeTab === "bookings"
+                ? "bg-emerald-600 text-white shadow-lg shadow-emerald-950/30"
+                : "text-zinc-500 hover:text-white"
+            }`}
+          >
+            VIP Booking Control
+          </button>
         </div>
 
         {/* Analytics Grid */}
@@ -510,7 +548,7 @@ export default function AdminPanelClient({
           ))}
         </section>
 
-        {activeTab === "media" ? (
+        {activeTab === "media" && (
           /* Media tab columns */
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
             
@@ -960,7 +998,9 @@ export default function AdminPanelClient({
             </div>
 
           </div>
-        ) : (
+        )}
+
+        {activeTab === "models" && (
           /* Models tab columns */
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
             
@@ -1021,7 +1061,7 @@ export default function AdminPanelClient({
                         onChange={(e) => setModelLocation(e.target.value)}
                         className="w-full h-9 px-3 rounded-xl bg-zinc-950 border border-white/5 text-xs text-zinc-200 focus:outline-none focus:border-purple-500 transition-colors"
                       >
-                        {["Mumbai", "Delhi", "Goa", "Bengaluru", "Kolkata", "Pune", "Hyderabad"].map((loc) => (
+                        {["Mumbai", "Delhi", "Goa", "Bengaluru", "Jaipur", "Kolkata", "Pune", "Hyderabad"].map((loc) => (
                           <option key={loc} value={loc}>{loc}</option>
                         ))}
                       </select>
@@ -1269,6 +1309,181 @@ export default function AdminPanelClient({
               </div>
             </div>
 
+          </div>
+        )}
+
+        {activeTab === "bookings" && (
+          /* Bookings tab columns */
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <div className="p-6 rounded-3xl glass-panel bg-zinc-900/10 border border-white/5 space-y-5">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="space-y-1 text-left">
+                  <h2 className="text-base font-black text-white tracking-wide flex items-center gap-1.5">
+                    <Heart className="h-5 w-5 text-emerald-400 fill-emerald-500/10" />
+                    VIP Companion Reservation Logs ({bookings.length})
+                  </h2>
+                  <p className="text-[11px] text-zinc-500 font-light">
+                    Monitor reservation checkout status, confirm bookings, or cancel requests.
+                  </p>
+                </div>
+              </div>
+
+              {/* Bookings table */}
+              <div className="overflow-x-auto rounded-2xl border border-white/5 bg-zinc-950/40">
+                <table className="w-full border-collapse text-left text-xs text-zinc-300 font-medium">
+                  <thead className="bg-[#121218]/80 text-zinc-400 font-bold uppercase tracking-wider text-[9px] border-b border-white/5">
+                    <tr>
+                      <th className="p-4">Companion Model</th>
+                      <th className="p-4">Customer Details</th>
+                      <th className="p-4">Date & Time</th>
+                      <th className="p-4">Location</th>
+                      <th className="p-4 text-center">Duration</th>
+                      <th className="p-4 text-center">Total Price</th>
+                      <th className="p-4 text-center">Status</th>
+                      <th className="p-4 text-center">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {bookings.map((booking) => (
+                      <tr key={booking.id} className="hover:bg-white/5 transition-colors">
+                        
+                        {/* Companion details */}
+                        <td className="p-4 flex items-center gap-3">
+                          <img
+                            src={booking.girl.avatar}
+                            alt={booking.girl.name}
+                            className="h-10 w-10 object-cover rounded-full border border-white/10 shrink-0 bg-zinc-900 shadow-md"
+                          />
+                          <div className="min-w-0">
+                            <p className="font-bold text-zinc-200 truncate leading-snug">{booking.girl.name}</p>
+                            <span className="px-2 py-0.5 rounded-full bg-pink-500/10 text-[8px] font-bold text-pink-400 uppercase tracking-wider">
+                              {booking.girl.category}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* Customer details */}
+                        <td className="p-4">
+                          <p className="font-bold text-zinc-200 leading-snug">{booking.user.name}</p>
+                          <p className="text-[10px] text-zinc-500 font-medium">{booking.user.email}</p>
+                          <p className="text-[10px] text-emerald-400 font-semibold mt-0.5">{booking.contactPhone}</p>
+                        </td>
+
+                        {/* Booking date */}
+                        <td className="p-4 font-semibold text-zinc-400">
+                          {new Date(booking.bookingDate).toLocaleString()}
+                        </td>
+
+                        {/* Location */}
+                        <td className="p-4 max-w-[150px] truncate font-light text-zinc-400">
+                          {booking.location}
+                          {booking.notes && (
+                            <p className="text-[10px] text-zinc-500 font-light italic mt-0.5 truncate" title={booking.notes}>
+                              Note: {booking.notes}
+                            </p>
+                          )}
+                        </td>
+
+                        {/* Duration */}
+                        <td className="p-4 text-center font-bold text-zinc-300">
+                          {booking.bookingType === "daily" 
+                            ? `${booking.durationDays} Days`
+                            : `${booking.durationHours} Hours`
+                          }
+                        </td>
+
+                        {/* Price */}
+                        <td className="p-4 text-center font-black text-white">
+                          ₹{booking.totalPrice.toLocaleString('en-IN')}
+                        </td>
+
+                        {/* Status badge */}
+                        <td className="p-4 text-center">
+                          {booking.status === "confirmed" ? (
+                            <span className="inline-flex items-center gap-0.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-[9px] font-black text-emerald-400 uppercase tracking-widest shadow-md">
+                              <CheckCircle className="h-2.5 w-2.5 text-emerald-400" />
+                              Confirmed
+                            </span>
+                          ) : booking.status === "cancelled" ? (
+                            <span className="inline-flex px-2.5 py-0.5 rounded-full bg-zinc-800 border border-white/5 text-[9px] font-black text-zinc-400 uppercase tracking-widest">
+                              Cancelled
+                            </span>
+                          ) : booking.status === "completed" ? (
+                            <span className="inline-flex px-2.5 py-0.5 rounded-full bg-indigo-500/20 border border-indigo-500/30 text-[9px] font-black text-indigo-400 uppercase tracking-widest">
+                              Completed
+                            </span>
+                          ) : (
+                            <span className="inline-flex px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/30 text-[9px] font-black text-amber-400 uppercase tracking-widest animate-pulse">
+                              <Clock className="h-2.5 w-2.5" />
+                              Pending
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Actions */}
+                        <td className="p-4">
+                          <div className="flex items-center justify-center gap-1.5">
+                            
+                            {/* Approve / Confirm */}
+                            {booking.status === "pending" && (
+                              <button
+                                onClick={() => handleUpdateStatus(booking.id, "confirmed")}
+                                className="px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-[10px] font-bold text-white transition-all shadow active:scale-95"
+                                title="Mark Booking as PAID & Confirmed"
+                              >
+                                Approve
+                              </button>
+                            )}
+
+                            {/* Mark Completed */}
+                            {booking.status === "confirmed" && (
+                              <button
+                                onClick={() => handleUpdateStatus(booking.id, "completed")}
+                                className="px-2 py-1 rounded bg-indigo-650 hover:bg-indigo-500 text-[10px] font-bold text-white transition-all shadow active:scale-95"
+                                title="Mark Booking as Completed"
+                              >
+                                Complete
+                              </button>
+                            )}
+
+                            {/* Cancel Booking */}
+                            {booking.status !== "cancelled" && booking.status !== "completed" && (
+                              <button
+                                onClick={() => handleUpdateStatus(booking.id, "cancelled")}
+                                className="px-2 py-1 rounded bg-zinc-900 border border-white/5 hover:border-red-500/20 hover:text-red-400 text-[10px] font-bold text-zinc-400 transition-all active:scale-95"
+                                title="Cancel Reservation"
+                              >
+                                Cancel
+                              </button>
+                            )}
+
+                            {/* Delete Booking permanently */}
+                            <button
+                              onClick={() => handleDeleteBooking(booking.id)}
+                              className="p-1.5 rounded-lg border border-red-500/10 text-red-400 hover:bg-red-500/10 transition-colors"
+                              title="Permanently Delete Booking Record"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+
+                          </div>
+                        </td>
+
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Empty state */}
+              {bookings.length === 0 && (
+                <div className="text-center py-12 space-y-2">
+                  <AlertTriangle className="h-7 w-7 text-zinc-650 mx-auto" />
+                  <p className="text-xs text-zinc-500 font-bold">No system VIP reservations recorded yet.</p>
+                </div>
+              )}
+
+            </div>
           </div>
         )}
 

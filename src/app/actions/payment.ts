@@ -23,7 +23,7 @@ export async function createCashfreeOrder() {
     const baseUrl = `${protocol}://${host}`;
 
     const orderId = `order_${user.userId}_${Date.now()}`;
-    const amount = 199.00;
+    const amount = 499.00;
 
     const cfAppId = process.env.CASHFREE_APP_ID;
     const cfSecretKey = process.env.CASHFREE_SECRET_KEY;

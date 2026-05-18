@@ -8,7 +8,7 @@ import {
   CheckCircle2, X, SlidersHorizontal, ShieldCheck, 
   Phone, AlertTriangle, ChevronRight, MessageSquare 
 } from "lucide-react";
-import { createBooking } from "@/app/actions/booking";
+import { createBooking, getBookingById } from "@/app/actions/booking";
 
 interface Girl {
   id: string;
@@ -112,7 +112,50 @@ export default function BookingClient({ user, initialGirls }: BookingClientProps
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [lastBookingDetails, setLastBookingDetails] = useState<any>(null);
 
-  const locations = ["All", "Mumbai", "Delhi", "Goa", "Bengaluru"];
+  // Load Cashfree Web SDK script dynamically
+  useEffect(() => {
+    const script = document.createElement("script");
+    script.src = "https://sdk.cashfree.com/js/v3/cashfree.js";
+    script.async = true;
+    document.body.appendChild(script);
+
+    return () => {
+      if (document.body.contains(script)) {
+        document.body.removeChild(script);
+      }
+    };
+  }, []);
+
+  // Scan URL parameters for transaction callback results
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      const success = urlParams.get("booking_success");
+      const failed = urlParams.get("booking_failed");
+      const bId = urlParams.get("booking_id");
+
+      if (success === "true" && bId) {
+        // Clear URL parameters
+        window.history.replaceState({}, document.title, window.location.pathname);
+        setLoading(true);
+        getBookingById(bId).then((res) => {
+          if (res.success && res.data) {
+            setLastBookingDetails(res.data);
+            setShowSuccessModal(true);
+          } else {
+            alert(res.error || "Failed to retrieve VIP booking details.");
+          }
+          setLoading(false);
+        });
+      } else if (failed === "true") {
+        const errorMsg = urlParams.get("error") || "Payment verification failed.";
+        window.history.replaceState({}, document.title, window.location.pathname);
+        alert(`Booking Failed: ${errorMsg}`);
+      }
+    }
+  }, []);
+
+  const locations = ["All", "Mumbai", "Delhi", "Goa", "Bengaluru", "Jaipur", "Kolkata", "Pune", "Hyderabad"];
   const categories = ["All", "VIP Russian", "Elite Local", "Celebrity"];
 
   // Filter and Sort Logic
@@ -160,11 +203,6 @@ export default function BookingClient({ user, initialGirls }: BookingClientProps
     e.preventDefault();
     if (!selectedGirl) return;
 
-    if (!bookingDate || !meetingLocation || !contactPhone) {
-      setError("Please fill out all required fields.");
-      return;
-    }
-
     setLoading(true);
     setError(null);
 
@@ -179,14 +217,10 @@ export default function BookingClient({ user, initialGirls }: BookingClientProps
       notes
     });
 
-    setLoading(false);
-
     if (res.success) {
-      setLastBookingDetails(res.data);
       setIsModalOpen(false);
-      setShowSuccessModal(true);
       
-      // Clear inputs
+      // Clear form inputs
       setBookingDate("");
       setBookingType("hourly");
       setDurationHours(2);
@@ -194,7 +228,34 @@ export default function BookingClient({ user, initialGirls }: BookingClientProps
       setMeetingLocation("");
       setContactPhone("");
       setNotes("");
+
+      // Standard simulation redirection, or Cashfree checkout trigger
+      if (res.isSimulation) {
+        // Redirect parent to custom mock callback endpoint directly
+        window.location.href = `${res.baseUrl}/api/booking/callback?order_id=${res.orderId}`;
+      } else {
+        try {
+          if (typeof window !== "undefined" && (window as any).Cashfree) {
+            const cashfree = (window as any).Cashfree({
+              mode: res.cfMode // "sandbox" or "production"
+            });
+
+            cashfree.checkout({
+              paymentSessionId: res.paymentSessionId,
+              redirectTarget: "_modal" // Embedded elegant modal overlay
+            });
+          } else {
+            alert("Payment gateway failed to initialize. Script loader delay. Please retry.");
+            setLoading(false);
+          }
+        } catch (checkoutErr: any) {
+          console.error("Cashfree Launch Exception:", checkoutErr);
+          alert("An error occurred launching checkout gateway modal. Falling back to simulation...");
+          window.location.href = `${res.baseUrl}/api/booking/callback?order_id=mock_booking_${res.bookingId}`;
+        }
+      }
     } else {
+      setLoading(false);
       setError(res.error || "Failed to make booking.");
     }
   };
@@ -435,11 +496,10 @@ export default function BookingClient({ user, initialGirls }: BookingClientProps
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {/* 1. Date & Time */}
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Date & Start Time *</label>
+                      <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Date & Start Time (Optional)</label>
                       <div className="relative">
                         <input 
                           type="datetime-local" 
-                          required
                           value={bookingDate}
                           onChange={(e) => setBookingDate(e.target.value)}
                           className="w-full h-10 px-3 bg-zinc-900/80 border border-white/10 rounded-xl text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-purple-500"
@@ -449,10 +509,9 @@ export default function BookingClient({ user, initialGirls }: BookingClientProps
 
                     {/* 2. Contact Phone */}
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">WhatsApp / Phone Number *</label>
+                      <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">WhatsApp / Phone Number (Optional)</label>
                       <input 
                         type="tel" 
-                        required
                         placeholder="+91 XXXXX XXXXX"
                         value={contactPhone}
                         onChange={(e) => setContactPhone(e.target.value)}
@@ -463,7 +522,7 @@ export default function BookingClient({ user, initialGirls }: BookingClientProps
 
                   {/* 3. Booking Type Toggle */}
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Select Booking Type *</label>
+                    <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Select Booking Type (Optional)</label>
                     <div className="grid grid-cols-2 gap-2 p-1.5 rounded-2xl bg-zinc-900/60 border border-white/5">
                       <button
                         type="button"
@@ -541,10 +600,9 @@ export default function BookingClient({ user, initialGirls }: BookingClientProps
 
                   {/* 5. Meeting Location Address */}
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Meeting Address / Hotel details *</label>
+                    <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Meeting Address / Hotel details (Optional)</label>
                     <input 
                       type="text" 
-                      required
                       placeholder="e.g. The Taj Mahal Palace, Colaba, Mumbai — Suite 402"
                       value={meetingLocation}
                       onChange={(e) => setMeetingLocation(e.target.value)}
@@ -701,7 +759,7 @@ export default function BookingClient({ user, initialGirls }: BookingClientProps
             <div className="flex flex-col gap-2">
               {/* WhatsApp direct contact link */}
               <a
-                href={`https://wa.me/${lastBookingDetails.contactPhone.replace(/\+/g, '')}`}
+                href={`https://wa.me/917059325217?text=Hello%20ViralMMS,%20I%20have%20completed%20my%20VIP%2520booking%2520(ID:%20${lastBookingDetails.id})%2520with%2520${encodeURIComponent(lastBookingDetails.girl.name)}.%2520Please%2520coordinate%2520my%2520session!`}
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="w-full h-11 px-6 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-xs text-white transition-all duration-300 shadow-md flex items-center justify-center gap-2"

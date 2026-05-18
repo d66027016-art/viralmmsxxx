@@ -50,6 +50,15 @@ export default async function AdminPage() {
       orderBy: { name: "asc" },
     });
 
+    // 5. Fetch all system VIP Date bookings
+    const bookings = await prisma.booking.findMany({
+      include: {
+        user: true,
+        girl: true,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
     return (
       <AdminPanelClient
         user={user}
@@ -57,6 +66,7 @@ export default async function AdminPage() {
         catalog={catalog}
         categoriesList={categoriesList}
         initialGirls={girls}
+        initialBookings={bookings}
       />
     );
   } catch (error: any) {

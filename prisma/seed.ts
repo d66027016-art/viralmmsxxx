@@ -1,12 +1,12 @@
 import { PrismaClient } from '@prisma/client';
-import * as bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('Seeding database...');
+  console.log('Seeding database with live production backup data...');
 
-  // Clean existing data
+  // Clean existing data in reverse order of relationships
+  console.log('Cleaning old records...');
   await prisma.booking.deleteMany({});
   await prisma.download.deleteMany({});
   await prisma.favorite.deleteMany({});
@@ -16,218 +16,229 @@ async function main() {
   await prisma.user.deleteMany({});
   await prisma.girl.deleteMany({});
 
-  // Seed default categories
-  const defaultCategories = ["Sci-Fi", "Anime", "Comedy", "Sports", "Documentary"];
-  for (const name of defaultCategories) {
+  // 1. Seed Categories
+  console.log('Seeding Categories...');
+  const categories = [
+    {
+      id: '3be80329-657b-43a8-b188-b094db1dca2a',
+      name: 'VERIFIED',
+      createdAt: new Date('2026-05-18T20:14:21.652Z'),
+    },
+    {
+      id: '37e21628-90dd-4813-91ad-751d653f3da8',
+      name: 'VIRAL',
+      createdAt: new Date('2026-05-18T20:16:00.696Z'),
+    }
+  ];
+
+  for (const cat of categories) {
     await prisma.category.create({
-      data: { name }
+      data: cat,
     });
   }
 
-  // Seed Users
-  const salt = await bcrypt.genSalt(10);
-  const adminPassword = await bcrypt.hash('admin123', salt);
-  const userPassword = await bcrypt.hash('user123', salt);
-
-  const admin = await prisma.user.create({
-    data: {
+  // 2. Seed Users (with original bcrypt password hashes preserved)
+  console.log('Seeding Users...');
+  const users = [
+    {
+      id: 'afdfc843-923d-4893-afa6-4ccba58993a4',
       name: 'Admin User',
       email: 'admin@hotwebhd.com',
-      passwordHash: adminPassword,
+      passwordHash: '$2b$10$2gqvfhbgYRdd446IT0OnS.YlexH7G3YmLkmWIjlsst/jmNtfHtxkO',
       avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
       subscription: 'premium',
+      createdAt: new Date('2026-05-18T20:12:09.015Z'),
     },
-  });
-
-  const normalUser = await prisma.user.create({
-    data: {
+    {
+      id: '25216cf8-75bd-4293-94a9-a92a08fc6dc2',
       name: 'Regular Viewer',
       email: 'user@hotwebhd.com',
-      passwordHash: userPassword,
+      passwordHash: '$2b$10$2gqvfhbgYRdd446IT0OnS.JikjpPpkvYCNBafpgYPpeTpCfObxgmS',
       avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150',
       subscription: 'free',
+      createdAt: new Date('2026-05-18T20:12:09.623Z'),
     },
-  });
-
-  const premiumUser = await prisma.user.create({
-    data: {
+    {
+      id: 'e2b81b9d-37ad-4004-b9f5-233141c4eb39',
       name: 'Premium Collector',
       email: 'premium@hotwebhd.com',
-      passwordHash: userPassword,
+      passwordHash: '$2b$10$2gqvfhbgYRdd446IT0OnS.JikjpPpkvYCNBafpgYPpeTpCfObxgmS',
       avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
       subscription: 'premium',
-    },
-  });
-
-  // Seed Content (Premium HD/4K trailers and videos)
-  const items = [
-    {
-      title: 'Tears of Steel - Cyberpunk Sci-Fi',
-      description: 'In a futuristic Amsterdam, a group of scientists and soldiers attempt to save the city from rampaging giant robots using a cybernetic love story as their final weapon. Staring premium VFX and adaptive full-HD visuals.',
-      category: 'Sci-Fi',
-      tags: 'scifi,robots,action,cyberpunk,vfx',
-      thumbnail: 'https://images.unsplash.com/photo-1535223289827-42f1e9919769?w=800',
-      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
-      duration: '12m 14s',
-      views: 12450,
-      likes: 852,
-      qualities: '1080p,720p',
+      createdAt: new Date('2026-05-18T20:12:09.898Z'),
     },
     {
-      title: 'Sintel - Legendary Anime & Fantasy',
-      description: 'A beautiful and epic fantasy animation following a young woman named Sintel on her journey to rescue a baby dragon. Along her search, she faces severe hardships and learns the high price of her attachment.',
-      category: 'Anime',
-      tags: 'anime,fantasy,dragon,adventure,cgi',
-      thumbnail: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=800',
-      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4',
-      duration: '14m 48s',
-      views: 8930,
-      likes: 642,
-      qualities: '1080p,720p',
-    },
-    {
-      title: 'Big Buck Bunny - Forest Comedy',
-      description: 'A giant, soft-hearted rabbit awakens to a beautiful sunny day in his forest home. But when three mischievous rodents pick a fight, Bunny hatches a hilariously complex and tactical plan to teach them a lesson!',
-      category: 'Comedy',
-      tags: 'comedy,animation,funny,animals,cgi',
-      thumbnail: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=800',
-      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-      duration: '9m 56s',
-      views: 15300,
-      likes: 1205,
-      qualities: '1080p,720p',
-    },
-    {
-      title: 'Elephants Dream - Surreal Steampunk',
-      description: 'A mind-bending journey of Proog and Emo, two men exploring a massive, bizarre mechanical typewriter-like world. They face different opinions on the nature of their environment in a visually breathtaking steampunk classic.',
-      category: 'Sci-Fi',
-      tags: 'steampunk,scifi,fantasy,surreal,weird',
-      thumbnail: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800',
-      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
-      duration: '10m 53s',
-      views: 5410,
-      likes: 310,
-      qualities: '1080p,720p',
-    },
-    {
-      title: 'Subaru Impreza - Burning Speed',
-      description: 'Experience pure speed and adrenaline with the Subaru WRX as it tears up the tarmac and powers through high-speed curves. A high-performance commercial demonstrating precision action engineering and full 4K HDR playback capability.',
-      category: 'Sports',
-      tags: 'cars,racing,speed,action,commercial',
-      thumbnail: 'https://images.unsplash.com/photo-1614162692292-7ac56d7f7f1e?w=800',
-      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-      duration: '0m 15s',
-      views: 22040,
-      likes: 1980,
-      qualities: '1080p,720p',
-    },
-    {
-      title: 'The Great Wilderness - Documentary',
-      description: 'Journey deep into the untouched corners of the earth. From majestic alpine ranges to shimmering deep-sea ecosystems, discover the diverse wildlife, sweeping vistas, and delicate balance of our planet in stunning detail.',
-      category: 'Documentary',
-      tags: 'documentary,nature,wildlife,earth,adventure',
-      thumbnail: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=800',
-      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WeAreGoingOnBullrun.mp4',
-      duration: '0m 47s',
-      views: 7420,
-      likes: 560,
-      qualities: '1080p,720p',
+      id: '2ce38f76-0e54-4d8b-b4d0-e79c87f9b038',
+      name: 'naughtymine',
+      email: 'ytyt12287@gmail.com',
+      passwordHash: '$2b$10$G/kjF736sHuG1CK12gaIMea2uWAc99j4BYGjOqpKJhIM94/mOkX3m',
+      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+      subscription: 'free',
+      createdAt: new Date('2026-05-18T20:24:18.575Z'),
     }
   ];
 
-  // Seed Curated Verified Escort/Model Profiles
-  const girls = [
+  for (const user of users) {
+    await prisma.user.create({
+      data: user,
+    });
+  }
+
+  // 3. Seed Content/Videos
+  console.log('Seeding Content...');
+  const contents = [
     {
-      name: 'Elena Rostova',
-      age: 23,
-      location: 'Mumbai',
-      category: 'VIP Russian',
-      ratePerHour: 6500,
-      ratePerDay: 50000,
-      avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=500',
-      images: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=500,https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=500',
-      bio: 'Professional fashion model and premium host. Elegant, conversational, and highly trained in high-society social gatherings.',
-      rating: 4.9,
-      reviewsCount: 18,
-      available: true
+      id: 'e96fd8dd-72ad-452c-8245-2a43800ed7aa',
+      title: 'VERIFIED',
+      description: 'VERIFIED BY SUJAL (DAMXD89)',
+      category: 'VERIFIED',
+      tags: 'desivillagegirlpinterestdesi,viraltelegramgrouplink,desiviralvideolink,desiviralclips,girldesiviral,desiviralvideotrending,leakedtelegramgroup,leakedepsteinfiles,viralvideoindian,viralvideo19minutes,viral,videogirl19minutes,instagramviralvideo,viralvideolinkwebsitelist,viralvideolinktoday,viralvideolinkoriginaldownloadviralvideolinkwebsitefree,fry99sex,masahubpornvideos,mydesimms,desiporn,desi49porn,mydesisex,desibfporn,chiggywiggyporn,mydesitles2sex,fsiblog,fsiblogporn,kamabba,kamababaporn,uncutaddasex,aagmalvideos,sexclips,sexvideo,viralmms,indianwebseries,indiangirlviralvideos,bangladeshiviralvideolink,bangladeshiviralvideotiktok,bdviraltelegramvideolink,bdvirallinkterabox',
+      thumbnail: 'https://files.catbox.moe/zd4qlh.jpg',
+      videoUrl: 'https://files.catbox.moe/81r8ih.mp4',
+      duration: '1 MIN',
+      views: 0,
+      likes: 0,
+      qualities: '1080p,720p',
+      createdAt: new Date('2026-05-18T20:15:51.685Z'),
     },
     {
-      name: 'Priya Sen',
-      age: 24,
-      location: 'Delhi',
-      category: 'Elite Local',
-      ratePerHour: 4500,
-      ratePerDay: 35000,
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500',
-      images: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=500,https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=500',
-      bio: 'Bubbly college graduate, art enthusiast, and elite host. Offers perfect companionship for cinema halls, corporate dinners, and premium dates.',
-      rating: 5.0,
-      reviewsCount: 24,
-      available: true
-    },
-    {
-      name: 'Sophia Loren',
-      age: 22,
-      location: 'Goa',
-      category: 'Celebrity',
-      ratePerHour: 8000,
-      ratePerDay: 60000,
-      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=500',
-      images: 'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=500,https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=500',
-      bio: 'Stunning luxury traveler and social influencer. Loves beachside dinners, club events, and high-end yacht dates.',
-      rating: 4.8,
-      reviewsCount: 14,
-      available: true
-    },
-    {
-      name: 'Aisha Sharma',
-      age: 25,
-      location: 'Bengaluru',
-      category: 'Elite Local',
-      ratePerHour: 5000,
-      ratePerDay: 40000,
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=500',
-      images: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500',
-      bio: 'Sensual, intellectual, and sweet-natured. Perfect partner for quiet private conversations, gourmet dining, and high-fidelity movie experiences.',
-      rating: 4.9,
-      reviewsCount: 31,
-      available: true
-    },
-    {
-      name: 'Natasha Romanoff',
-      age: 26,
-      location: 'Mumbai',
-      category: 'VIP Russian',
-      ratePerHour: 7500,
-      ratePerDay: 55000,
-      avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=500',
-      images: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=500',
-      bio: 'Breathtaking elegance paired with excellent hospitality. Multi-lingual companion who thrives in premium cocktail mixers and luxurious private parties.',
-      rating: 5.0,
-      reviewsCount: 12,
-      available: true
-    },
-    {
-      name: 'Kavya Reddy',
-      age: 21,
-      location: 'Bengaluru',
-      category: 'Elite Local',
-      ratePerHour: 4000,
-      ratePerDay: 30000,
-      avatar: 'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=500',
-      images: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500',
-      bio: 'Passionate dancer, cheerful college companion, and cinema lover. Extremely photogenic and highly requested for premium weekend cinema escapes.',
-      rating: 4.7,
-      reviewsCount: 9,
-      available: true
+      id: '22e7605d-bf68-4e31-a75b-42cd7852c5c5',
+      title: 'helping a boy to loosing their virginity',
+      description: 'HELPING A BOY TO LOSE . .',
+      category: 'VERIFIED',
+      tags: 'desivillagegirlpinterestdesi,viraltelegramgrouplink,desiviralvideolink,desiviralclips,girldesiviral,desiviralvideotrending,leakedtelegramgroup,leakedepsteinfiles,viralvideoindian,viralvideo19minutes,viral,videogirl19minutes,instagramviralvideo,viralvideolinkwebsitelist,viralvideolinktoday,viralvideolinkoriginaldownloadviralvideolinkwebsitefree,fry99sex,masahubpornvideos,mydesimms,desiporn,desi49porn,mydesisex,desibfporn,chiggywiggyporn,mydesitles2sex,fsiblog,fsiblogporn,kamabba,kamababaporn,uncutaddasex,aagmalvideos,sexclips,sexvideo,viralmms,indianwebseries,indiangirlviralvideos,bangladeshiviralvideolink,bangladeshiviralvideotiktok,bdviraltelegramvideolink,bdvirallinkterabox',
+      thumbnail: 'https://files.catbox.moe/e247nh.jpg',
+      videoUrl: 'https://files.catbox.moe/z3o2ek.mp4',
+      duration: '1MIN',
+      views: 0,
+      likes: 0,
+      qualities: '1080p,720p',
+      createdAt: new Date('2026-05-18T20:17:40.829Z'),
     }
   ];
 
-  for (const item of items) {
+  for (const item of contents) {
     await prisma.content.create({
       data: item,
     });
   }
+
+  // 4. Seed Escort Profiles (Girls)
+  console.log('Seeding Girls...');
+  const girls = [
+    {
+      id: '2ff95d0c-d09c-44bd-a456-fc41ea18a572',
+      name: 'RADHIKA',
+      age: 21,
+      location: 'Delhi',
+      category: 'Supermodel',
+      ratePerHour: 1500,
+      ratePerDay: 5000,
+      avatar: 'https://files.catbox.moe/kfaii0.png',
+      images: 'https://files.catbox.moe/kfaii0.png',
+      bio: 'all positions and bj',
+      rating: 5.0,
+      reviewsCount: 1,
+      available: true,
+      createdAt: new Date('2026-05-18T20:18:38.832Z'),
+    },
+    {
+      id: '32cd1a4d-ba57-441e-adad-045816ccf562',
+      name: 'DIVYA',
+      age: 28,
+      location: 'Hyderabad',
+      category: 'VIP Russian',
+      ratePerHour: 1500,
+      ratePerDay: 7000,
+      avatar: 'https://files.catbox.moe/lskjg7.jpeg',
+      images: 'https://files.catbox.moe/lskjg7.jpeg',
+      bio: 'all positions and bj',
+      rating: 5.0,
+      reviewsCount: 1,
+      available: true,
+      createdAt: new Date('2026-05-18T20:19:32.602Z'),
+    },
+    {
+      id: '444d6c86-588e-4446-bb7f-9b86df624c75',
+      name: 'ISITHA',
+      age: 25,
+      location: 'Bengaluru',
+      category: 'Supermodel',
+      ratePerHour: 2500,
+      ratePerDay: 10000,
+      avatar: 'https://files.catbox.moe/gvkpxl.jpeg',
+      images: 'https://files.catbox.moe/gvkpxl.jpeg',
+      bio: 'all positions and bj',
+      rating: 5.0,
+      reviewsCount: 1,
+      available: true,
+      createdAt: new Date('2026-05-18T20:20:28.904Z'),
+    },
+    {
+      id: '31fd5c62-f24e-439f-b1c3-13bd8854c39a',
+      name: 'MUSKAN',
+      age: 28,
+      location: 'Bengaluru',
+      category: 'VIP Russian',
+      ratePerHour: 2500,
+      ratePerDay: 9000,
+      avatar: 'https://files.catbox.moe/gmq0a6.jpeg',
+      images: 'https://files.catbox.moe/gmq0a6.jpeg',
+      bio: 'all positions and bj',
+      rating: 5.0,
+      reviewsCount: 1,
+      available: true,
+      createdAt: new Date('2026-05-18T20:21:24.345Z'),
+    },
+    {
+      id: '17676d85-eebc-4eaa-b598-684eff752e3d',
+      name: 'RIYA',
+      age: 22,
+      location: 'Mumbai',
+      category: 'Celebrity Escort',
+      ratePerHour: 1500,
+      ratePerDay: 5000,
+      avatar: 'https://files.catbox.moe/a3w8ul.jpeg',
+      images: 'https://files.catbox.moe/a3w8ul.jpeg',
+      bio: 'all positions and bj',
+      rating: 5.0,
+      reviewsCount: 1,
+      available: true,
+      createdAt: new Date('2026-05-18T20:22:06.732Z'),
+    },
+    {
+      id: '3317fe12-55c7-425e-b245-4c15bd7e4b10',
+      name: 'TANVI',
+      age: 20,
+      location: 'Goa',
+      category: 'Elite Local',
+      ratePerHour: 5000,
+      ratePerDay: 5000,
+      avatar: 'https://files.catbox.moe/2vf94h.jpeg',
+      images: 'https://files.catbox.moe/2vf94h.jpeg',
+      bio: 'all positions and bj',
+      rating: 5.0,
+      reviewsCount: 1,
+      available: true,
+      createdAt: new Date('2026-05-18T20:22:40.096Z'),
+    },
+    {
+      id: '78b04770-2ce7-4367-96db-d0d77cd9d7ff',
+      name: 'ANGELI',
+      age: 26,
+      location: 'Delhi',
+      category: 'Elite Local',
+      ratePerHour: 1498,
+      ratePerDay: 6000,
+      avatar: 'https://files.catbox.moe/pm6q3u.jpeg',
+      images: 'https://files.catbox.moe/pm6q3u.jpeg',
+      bio: 'all positions and bj',
+      rating: 5.0,
+      reviewsCount: 1,
+      available: true,
+      createdAt: new Date('2026-05-18T20:23:15.313Z'),
+    }
+  ];
 
   for (const girl of girls) {
     await prisma.girl.create({
@@ -235,7 +246,33 @@ async function main() {
     });
   }
 
-  console.log('Database seeded successfully!');
+  // 5. Seed Bookings
+  console.log('Seeding Bookings...');
+  const bookings = [
+    {
+      id: '48383104-0132-4069-a49f-cb7a7feed911',
+      userId: '2ce38f76-0e54-4d8b-b4d0-e79c87f9b038',
+      girlId: '31fd5c62-f24e-439f-b1c3-13bd8854c39a',
+      bookingDate: new Date('2026-05-19T02:57:00.000Z'),
+      bookingType: 'daily',
+      durationHours: 0,
+      durationDays: 1,
+      totalPrice: 9000,
+      status: 'cancelled',
+      location: 'HJWEBJDDLJSDKKLW',
+      contactPhone: '8905582659',
+      notes: 'SBDJBKBDFBKJ',
+      createdAt: new Date('2026-05-18T20:25:28.171Z'),
+    }
+  ];
+
+  for (const booking of bookings) {
+    await prisma.booking.create({
+      data: booking,
+    });
+  }
+
+  console.log('Database seeded successfully with production data!');
 }
 
 main()
