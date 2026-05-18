@@ -5,6 +5,29 @@ import { getCurrentUser } from './auth';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 
+// Helper to stream files directly to the Catbox.moe Cloud Storage CDN
+async function uploadToCatbox(file: File): Promise<string> {
+  const formData = new FormData();
+  formData.append('reqtype', 'fileupload');
+  formData.append('fileToUpload', file);
+
+  const response = await fetch('https://catbox.moe/user/api.php', {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Cloud upload failed with status ${response.status}`);
+  }
+
+  const url = await response.text();
+  if (!url.startsWith('http')) {
+    throw new Error(`Cloud upload error: ${url}`);
+  }
+
+  return url.trim();
+}
+
 // Authenticate that the user is the administrator
 async function verifyAdmin() {
   const session = await getCurrentUser();
@@ -33,34 +56,14 @@ export async function uploadContent(prevState: any, formData: FormData) {
     let videoUrl = formData.get('videoUrl') as string || '';
     let thumbnail = formData.get('thumbnail') as string || '';
 
-    // Handle Local Video File Upload
+    // Handle Local Video File Upload (Stream directly to Cloud CDN)
     if (videoFile && videoFile.size > 0 && typeof videoFile.arrayBuffer === 'function') {
-      const buffer = Buffer.from(await videoFile.arrayBuffer());
-      const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
-      
-      // Ensure the directory exists
-      await mkdir(uploadsDir, { recursive: true });
-      
-      const filename = `video_${Date.now()}_${videoFile.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
-      const filePath = path.join(uploadsDir, filename);
-      await writeFile(filePath, new Uint8Array(buffer));
-      
-      videoUrl = `/uploads/${filename}`;
+      videoUrl = await uploadToCatbox(videoFile);
     }
 
-    // Handle Local Thumbnail File Upload
+    // Handle Local Thumbnail File Upload (Stream directly to Cloud CDN)
     if (thumbnailFile && thumbnailFile.size > 0 && typeof thumbnailFile.arrayBuffer === 'function') {
-      const buffer = Buffer.from(await thumbnailFile.arrayBuffer());
-      const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
-      
-      // Ensure the directory exists
-      await mkdir(uploadsDir, { recursive: true });
-      
-      const filename = `thumb_${Date.now()}_${thumbnailFile.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
-      const filePath = path.join(uploadsDir, filename);
-      await writeFile(filePath, new Uint8Array(buffer));
-      
-      thumbnail = `/uploads/${filename}`;
+      thumbnail = await uploadToCatbox(thumbnailFile);
     }
 
     if (!title || !description || !category || !tags || !thumbnail || !videoUrl || !duration) {
@@ -214,5 +217,69 @@ export async function getCategoriesList() {
   } catch (error: any) {
     console.error('Get categories list error:', error);
     return { success: false, error: 'Failed to retrieve categories list.', data: [] };
+  }
+}
+
+// Create a new VIP model profile (Admin only)
+export async function createGirl(prevState: any, formData: FormData) {
+  try {
+    await verifyAdmin();
+
+    const name = formData.get('name') as string;
+    const age = Number(formData.get('age'));
+    const location = formData.get('location') as string;
+    const category = formData.get('category') as string;
+    const ratePerHour = Number(formData.get('ratePerHour'));
+    const ratePerDay = Number(formData.get('ratePerDay'));
+    const bio = formData.get('bio') as string;
+
+    const avatarFile = formData.get('avatarFile') as File | null;
+    let avatarUrl = formData.get('avatarUrl') as string || '';
+
+    // Handle Local Avatar File Upload
+    if (avatarFile && avatarFile.size > 0 && typeof avatarFile.arrayBuffer === 'function') {
+      avatarUrl = await uploadToCatbox(avatarFile);
+    }
+
+    let galleryUrls = formData.get('galleryUrls') as string || '';
+
+    if (!name || !age || !location || !category || !ratePerHour || !ratePerDay || !bio || !avatarUrl) {
+      return { success: false, error: 'Please provide all details and an avatar image.' };
+    }
+
+    const girl = await prisma.girl.create({
+      data: {
+        name: name.trim(),
+        age,
+        location: location.trim(),
+        category: category.trim(),
+        ratePerHour,
+        ratePerDay,
+        bio: bio.trim(),
+        avatar: avatarUrl.trim(),
+        images: galleryUrls.trim() || avatarUrl.trim(),
+      },
+    });
+
+    return { success: true, message: `VIP Companion "${name}" published successfully!`, data: girl };
+  } catch (error: any) {
+    console.error('Create model companion error:', error);
+    return { success: false, error: error.message || 'Failed to publish companion profile.' };
+  }
+}
+
+// Delete a VIP model profile (Admin only)
+export async function deleteGirl(id: string) {
+  try {
+    await verifyAdmin();
+
+    await prisma.girl.delete({
+      where: { id },
+    });
+
+    return { success: true, message: 'VIP companion profile deleted successfully.' };
+  } catch (error: any) {
+    console.error('Delete model companion error:', error);
+    return { success: false, error: error.message || 'Failed to delete profile.' };
   }
 }

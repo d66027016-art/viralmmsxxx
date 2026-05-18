@@ -18,6 +18,7 @@ model User {
   watchHistory     WatchHistory[]
   favorites        Favorite[]
   downloads        Download[]
+  bookings         Booking[]
 }
 
 model Content {
@@ -77,4 +78,40 @@ model Category {
   id        String   @id @default(uuid())
   name      String   @unique
   createdAt DateTime @default(now())
+}
+
+model Girl {
+  id           String    @id @default(uuid())
+  name         String
+  age          Int
+  location     String    // e.g. "Mumbai", "Delhi", "Bengaluru"
+  category     String    // e.g. "VIP Russian", "Elite Local", "Celebrity"
+  ratePerHour  Int       // Pricing in INR hourly
+  ratePerDay   Int       // Pricing in INR daily
+  avatar       String    // Unsplash profile image URL
+  images       String    // Comma-separated list of additional image URLs
+  bio          String
+  rating       Float     @default(5.0)
+  reviewsCount Int       @default(1)
+  available    Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  bookings     Booking[]
+}
+
+model Booking {
+  id            String   @id @default(uuid())
+  userId        String
+  girlId        String
+  bookingDate   DateTime
+  bookingType   String   @default("hourly") // "hourly" or "daily"
+  durationHours Int
+  durationDays  Int      @default(0)
+  totalPrice    Int
+  status        String   @default("pending") // "pending", "confirmed", "completed", "cancelled"
+  location      String   // E.g. hotel name or private address
+  contactPhone  String
+  notes         String?
+  createdAt     DateTime @default(now())
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  girl          Girl     @relation(fields: [girlId], references: [id], onDelete: Cascade)
 }

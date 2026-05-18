@@ -31,12 +31,20 @@ export default async function DashboardPage() {
     include: { content: true },
   });
 
+  // 4. Fetch user VIP booking reservations
+  const bookings = await prisma.booking.findMany({
+    where: { userId: user.userId },
+    include: { girl: true },
+    orderBy: { createdAt: "desc" },
+  });
+
   return (
     <DashboardClient
       user={user}
       watchHistory={watchHistory}
       favorites={favorites}
       downloads={downloads}
+      bookings={bookings}
     />
   );
 }

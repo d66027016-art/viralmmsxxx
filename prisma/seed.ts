@@ -7,12 +7,14 @@ async function main() {
   console.log('Seeding database...');
 
   // Clean existing data
+  await prisma.booking.deleteMany({});
   await prisma.download.deleteMany({});
   await prisma.favorite.deleteMany({});
   await prisma.watchHistory.deleteMany({});
   await prisma.content.deleteMany({});
   await prisma.category.deleteMany({});
   await prisma.user.deleteMany({});
+  await prisma.girl.deleteMany({});
 
   // Seed default categories
   const defaultCategories = ["Sci-Fi", "Anime", "Comedy", "Sports", "Documentary"];
@@ -133,9 +135,103 @@ async function main() {
     }
   ];
 
+  // Seed Curated Verified Escort/Model Profiles
+  const girls = [
+    {
+      name: 'Elena Rostova',
+      age: 23,
+      location: 'Mumbai',
+      category: 'VIP Russian',
+      ratePerHour: 6500,
+      ratePerDay: 50000,
+      avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=500',
+      images: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=500,https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=500',
+      bio: 'Professional fashion model and premium host. Elegant, conversational, and highly trained in high-society social gatherings.',
+      rating: 4.9,
+      reviewsCount: 18,
+      available: true
+    },
+    {
+      name: 'Priya Sen',
+      age: 24,
+      location: 'Delhi',
+      category: 'Elite Local',
+      ratePerHour: 4500,
+      ratePerDay: 35000,
+      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500',
+      images: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=500,https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=500',
+      bio: 'Bubbly college graduate, art enthusiast, and elite host. Offers perfect companionship for cinema halls, corporate dinners, and premium dates.',
+      rating: 5.0,
+      reviewsCount: 24,
+      available: true
+    },
+    {
+      name: 'Sophia Loren',
+      age: 22,
+      location: 'Goa',
+      category: 'Celebrity',
+      ratePerHour: 8000,
+      ratePerDay: 60000,
+      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=500',
+      images: 'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=500,https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=500',
+      bio: 'Stunning luxury traveler and social influencer. Loves beachside dinners, club events, and high-end yacht dates.',
+      rating: 4.8,
+      reviewsCount: 14,
+      available: true
+    },
+    {
+      name: 'Aisha Sharma',
+      age: 25,
+      location: 'Bengaluru',
+      category: 'Elite Local',
+      ratePerHour: 5000,
+      ratePerDay: 40000,
+      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=500',
+      images: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500',
+      bio: 'Sensual, intellectual, and sweet-natured. Perfect partner for quiet private conversations, gourmet dining, and high-fidelity movie experiences.',
+      rating: 4.9,
+      reviewsCount: 31,
+      available: true
+    },
+    {
+      name: 'Natasha Romanoff',
+      age: 26,
+      location: 'Mumbai',
+      category: 'VIP Russian',
+      ratePerHour: 7500,
+      ratePerDay: 55000,
+      avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=500',
+      images: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=500',
+      bio: 'Breathtaking elegance paired with excellent hospitality. Multi-lingual companion who thrives in premium cocktail mixers and luxurious private parties.',
+      rating: 5.0,
+      reviewsCount: 12,
+      available: true
+    },
+    {
+      name: 'Kavya Reddy',
+      age: 21,
+      location: 'Bengaluru',
+      category: 'Elite Local',
+      ratePerHour: 4000,
+      ratePerDay: 30000,
+      avatar: 'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=500',
+      images: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500',
+      bio: 'Passionate dancer, cheerful college companion, and cinema lover. Extremely photogenic and highly requested for premium weekend cinema escapes.',
+      rating: 4.7,
+      reviewsCount: 9,
+      available: true
+    }
+  ];
+
   for (const item of items) {
     await prisma.content.create({
       data: item,
+    });
+  }
+
+  for (const girl of girls) {
+    await prisma.girl.create({
+      data: girl,
     });
   }
 

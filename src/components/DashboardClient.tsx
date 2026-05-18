@@ -6,11 +6,12 @@ import ContentCard from "@/components/ContentCard";
 import Link from "next/link";
 import {
   Sparkles, History, Bookmark, Download, Play,
-  Trash2, User, Zap, ShieldCheck, Mail, Calendar, FileVideo, CheckCircle2
+  Trash2, User, Zap, ShieldCheck, Mail, Calendar, FileVideo, CheckCircle2, Heart, Phone, Clock
 } from "lucide-react";
 import { toggleSubscription } from "@/app/actions/auth";
 import { toggleFavorite } from "@/app/actions/content";
 import { createCashfreeOrder } from "@/app/actions/payment";
+import { cancelBooking } from "@/app/actions/booking";
 import { useRouter } from "next/navigation";
 
 interface DashboardClientProps {
@@ -23,16 +24,18 @@ interface DashboardClientProps {
   watchHistory: any[];
   favorites: any[];
   downloads: any[];
+  bookings?: any[];
 }
 
 export default function DashboardClient({
   user,
   watchHistory,
   favorites,
-  downloads
+  downloads,
+  bookings = []
 }: DashboardClientProps) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"history" | "watchlist" | "downloads">("history");
+  const [activeTab, setActiveTab] = useState<"history" | "watchlist" | "downloads" | "bookings">("history");
   const [loading, setLoading] = useState(false);
   const [showUpgradeSuccess, setShowUpgradeSuccess] = useState(false);
   const [showAuthWarning, setShowAuthWarning] = useState(false);
@@ -118,6 +121,19 @@ export default function DashboardClient({
   const handleRemoveFavorite = async (id: string) => {
     await toggleFavorite(id);
     router.refresh();
+  };
+
+  const handleCancelReservation = async (id: string) => {
+    if (confirm("Are you sure you want to cancel this VIP Date reservation?")) {
+      setLoading(true);
+      const res = await cancelBooking(id);
+      if (res.success) {
+        router.refresh();
+      } else {
+        alert(res.error || "Failed to cancel reservation.");
+      }
+      setLoading(false);
+    }
   };
 
   // Convert bytes size to human readable sizes
@@ -243,11 +259,12 @@ export default function DashboardClient({
 
         {/* Tab Controllers */}
         <section className="space-y-6">
-          <div className="flex border-b border-white/5 gap-4">
+          <div className="flex border-b border-white/5 gap-4 overflow-x-auto">
             {[
               { id: "history", label: "Watch History", icon: History },
               { id: "watchlist", label: "My Watchlist", icon: Bookmark },
-              { id: "downloads", label: "Downloads Vault", icon: Download }
+              { id: "downloads", label: "Downloads Vault", icon: Download },
+              { id: "bookings", label: "VIP Bookings", icon: Heart }
             ].map((tab) => {
               const isActive = activeTab === tab.id;
               return (
@@ -409,6 +426,110 @@ export default function DashboardClient({
                   <p className="text-[11px] text-zinc-500 max-w-xs mx-auto leading-relaxed font-light">
                     Need offline viewing? Launch any video trailer and click "Download Content" to transfer files to your local vault cache.
                   </p>
+                </div>
+              )
+            )}
+
+            {/* 4. Bookings Tab */}
+            {activeTab === "bookings" && (
+              bookings.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in duration-300">
+                  {bookings.map((booking) => (
+                    <div 
+                      key={booking.id}
+                      className="group relative flex flex-col sm:flex-row rounded-3xl overflow-hidden glass-panel border border-white/5 bg-[#121218]/25 p-4 hover:border-purple-500/35 transition-all duration-300 text-left gap-4"
+                    >
+                      {/* Left: Companion Avatar */}
+                      <div className="relative h-24 w-full sm:w-24 shrink-0 rounded-2xl overflow-hidden bg-zinc-900 border border-white/5">
+                        <img 
+                          src={booking.girl.avatar} 
+                          alt={booking.girl.name}
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute top-2 left-2 px-1.5 py-0.5 rounded-full bg-purple-500/90 text-[8px] font-black text-white uppercase tracking-wider">
+                          {booking.girl.category}
+                        </div>
+                      </div>
+
+                      {/* Right: Booking Info */}
+                      <div className="flex-grow space-y-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <h4 className="text-sm font-black text-white group-hover:text-purple-400 transition-colors">
+                            Companion: {booking.girl.name}
+                          </h4>
+                          
+                          {/* Dynamic Status Badges */}
+                          {booking.status === "confirmed" ? (
+                            <span className="flex items-center gap-0.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-[9px] font-black text-emerald-400 uppercase tracking-widest shadow-md">
+                              <CheckCircle2 className="h-2.5 w-2.5 text-emerald-400" />
+                              Confirmed
+                            </span>
+                          ) : booking.status === "cancelled" ? (
+                            <span className="px-2.5 py-0.5 rounded-full bg-zinc-800 border border-white/5 text-[9px] font-black text-zinc-400 uppercase tracking-widest">
+                              Cancelled
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/30 text-[9px] font-black text-amber-400 uppercase tracking-widest">
+                              Pending
+                            </span>
+                          )}
+                        </div>
+
+                        <p className="text-[11px] text-zinc-400 font-light line-clamp-1">
+                          <b>Location:</b> {booking.location}
+                        </p>
+
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-zinc-500 font-semibold pt-1 border-t border-white/5">
+                          <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5 text-zinc-500" /> {new Date(booking.bookingDate).toLocaleString()}</span>
+                          <span className="flex items-center gap-1">
+                            {booking.bookingType === "daily" ? (
+                              <><Calendar className="h-3.5 w-3.5 text-zinc-500" /> {booking.durationDays} Days</>
+                            ) : (
+                              <><Clock className="h-3.5 w-3.5 text-zinc-500" /> {booking.durationHours} Hours</>
+                            )}
+                          </span>
+                          <span className="text-white font-bold ml-auto">₹{booking.totalPrice.toLocaleString('en-IN')}</span>
+                        </div>
+
+                        {/* Cancel option if confirmed or pending */}
+                        {booking.status !== "cancelled" && (
+                          <div className="pt-2 flex justify-between items-center border-t border-white/5">
+                            <a 
+                              href={`https://wa.me/${booking.contactPhone.replace(/\+/g, '')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1"
+                            >
+                              <Phone className="h-3 w-3" />
+                              Chat Agency
+                            </a>
+                            <button
+                              onClick={() => handleCancelReservation(booking.id)}
+                              className="px-2.5 py-1 rounded-lg border border-red-500/10 text-[9px] font-bold text-red-400 hover:bg-red-500/10 transition-all hover:border-red-500/30"
+                            >
+                              Cancel Date
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-20 text-center rounded-3xl glass-panel bg-[#121218]/10 border border-white/5 space-y-3">
+                  <Calendar className="h-9 w-9 text-zinc-600 mx-auto" />
+                  <h4 className="text-xs font-bold text-zinc-300">No VIP Bookings Active</h4>
+                  <p className="text-[11px] text-zinc-500 max-w-xs mx-auto leading-relaxed font-light">
+                    You have not scheduled any VIP dates or escorts yet. Visit our Booking hub to browse model companions.
+                  </p>
+                  <div className="pt-2">
+                    <Link
+                      href="/booking"
+                      className="inline-flex items-center justify-center gap-1.5 h-8 px-4 rounded-full bg-purple-600 hover:bg-purple-500 font-bold text-[10px] text-white transition-all active:scale-95 shadow-lg shadow-purple-950/20"
+                    >
+                      Browse VIP Models
+                    </Link>
+                  </div>
                 </div>
               )
             )}

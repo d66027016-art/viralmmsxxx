@@ -4,10 +4,27 @@ import { useState, useTransition } from "react";
 import Navbar from "@/components/Navbar";
 import { 
   Plus, Trash2, Eye, Heart, BarChart3, Film, Users, 
-  Sparkles, ShieldCheck, Download, PlusCircle, CheckCircle, AlertTriangle 
+  Sparkles, ShieldCheck, Download, PlusCircle, CheckCircle, AlertTriangle,
+  Clock, MapPin, Calendar, Image as ImageIcon
 } from "lucide-react";
-import { uploadContent, deleteContent, createCategory, deleteCategory } from "@/app/actions/admin";
+import { uploadContent, deleteContent, createCategory, deleteCategory, createGirl, deleteGirl } from "@/app/actions/admin";
 import { useRouter } from "next/navigation";
+
+interface Girl {
+  id: string;
+  name: string;
+  age: number;
+  location: string;
+  category: string;
+  ratePerHour: number;
+  ratePerDay: number;
+  avatar: string;
+  images: string;
+  bio: string;
+  rating: number;
+  reviewsCount: number;
+  available: boolean;
+}
 
 interface AdminPanelClientProps {
   user: {
@@ -27,15 +44,20 @@ interface AdminPanelClientProps {
   };
   catalog: any[];
   categoriesList: any[];
+  initialGirls: Girl[];
 }
 
 export default function AdminPanelClient({ 
   user, 
   analytics, 
   catalog,
-  categoriesList
+  categoriesList,
+  initialGirls
 }: AdminPanelClientProps) {
   const router = useRouter();
+  const [activeTab, setActiveTab] = useState<"media" | "models">("media");
+  const [girls, setGirls] = useState<Girl[]>(initialGirls);
+  
   const [isPending, startTransition] = useTransition();
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
@@ -49,6 +71,24 @@ export default function AdminPanelClient({
   const [videoUrl, setVideoUrl] = useState("");
   const [thumbnail, setThumbnail] = useState("");
   const [qualities, setQualities] = useState("1080p,720p");
+
+  // Model registration states
+  const [modelName, setModelName] = useState("");
+  const [modelAge, setModelAge] = useState<number>(22);
+  const [modelLocation, setModelLocation] = useState("Mumbai");
+  const [modelCategory, setModelCategory] = useState("VIP Russian");
+  const [modelRatePerHour, setModelRatePerHour] = useState<number>(5000);
+  const [modelRatePerDay, setModelRatePerDay] = useState<number>(50000);
+  const [modelBio, setModelBio] = useState("");
+  const [modelAvatarUrl, setModelAvatarUrl] = useState("");
+  const [modelGalleryUrls, setModelGalleryUrls] = useState("");
+  const [modelAvatarFile, setModelAvatarFile] = useState<File | null>(null);
+  const [modelDragActive, setModelDragActive] = useState(false);
+  const [modelAvatarSource, setModelAvatarSource] = useState<"file" | "url">("file");
+
+  const [modelError, setModelError] = useState<string | null>(null);
+  const [modelSuccess, setModelSuccess] = useState<string | null>(null);
+  const [modelPending, startModelTransition] = useTransition();
 
   // Dynamic Video Source Toggles
   const [videoSource, setVideoSource] = useState<"file" | "url">("file");
@@ -179,6 +219,105 @@ export default function AdminPanelClient({
       } else {
         alert(res.error || "Failed to delete category.");
       }
+    }
+  };
+
+  const handleModelSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setModelError(null);
+    setModelSuccess(null);
+
+    const formData = new FormData();
+    formData.append("name", modelName);
+    formData.append("age", String(modelAge));
+    formData.append("location", modelLocation);
+    formData.append("category", modelCategory);
+    formData.append("ratePerHour", String(modelRatePerHour));
+    formData.append("ratePerDay", String(modelRatePerDay));
+    formData.append("bio", modelBio);
+
+    if (modelAvatarSource === "file") {
+      if (!modelAvatarFile) {
+        setModelError("Please select or drop an avatar image for the model profile.");
+        return;
+      }
+      formData.append("avatarFile", modelAvatarFile);
+    } else {
+      if (!modelAvatarUrl || modelAvatarUrl.trim() === "") {
+        setModelError("Please enter a valid remote avatar photo URL.");
+        return;
+      }
+      formData.append("avatarUrl", modelAvatarUrl);
+    }
+
+    formData.append("galleryUrls", modelGalleryUrls);
+
+    startModelTransition(async () => {
+      const res = await createGirl(null, formData);
+      if (res.success) {
+        setModelSuccess(res.message || "VIP Companion profile published!");
+        // Reset state
+        setModelName("");
+        setModelAge(22);
+        setModelLocation("Mumbai");
+        setModelCategory("VIP Russian");
+        setModelRatePerHour(5000);
+        setModelRatePerDay(50000);
+        setModelBio("");
+        setModelAvatarUrl("");
+        setModelGalleryUrls("");
+        setModelAvatarFile(null);
+        
+        if (res.data) {
+          setGirls((prev) => [res.data, ...prev]);
+        }
+        router.refresh();
+      } else {
+        setModelError(res.error || "Failed to publish companion profile.");
+      }
+    });
+  };
+
+  const handleDeleteGirl = async (id: string, name: string) => {
+    if (confirm(`Are you absolutely sure you want to remove the model companion "${name}"? This is permanent and deletes all reservation history.`)) {
+      const res = await deleteGirl(id);
+      if (res.success) {
+        setGirls((prev) => prev.filter((g) => g.id !== id));
+        router.refresh();
+      } else {
+        alert(res.error || "Failed to delete companion profile.");
+      }
+    }
+  };
+
+  const handleModelDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setModelDragActive(true);
+    } else if (e.type === "dragleave") {
+      setModelDragActive(false);
+    }
+  };
+
+  const handleModelDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setModelDragActive(false);
+    
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const file = e.dataTransfer.files[0];
+      if (file.type.startsWith("image/")) {
+        setModelAvatarFile(file);
+      } else {
+        alert("Please drop a valid image file (e.g. .jpg, .png).");
+      }
+    }
+  };
+
+  const handleModelChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setModelAvatarFile(e.target.files[0]);
     }
   };
 
@@ -327,6 +466,30 @@ export default function AdminPanelClient({
           </span>
         </div>
 
+        {/* Navigation Tabs (Premium Segmented Glass Control) */}
+        <div className="flex p-1 rounded-2xl bg-zinc-950/60 border border-white/5 w-fit gap-2">
+          <button
+            onClick={() => setActiveTab("media")}
+            className={`h-9 px-6 rounded-xl font-black text-xs uppercase tracking-wider transition-all duration-300 ${
+              activeTab === "media"
+                ? "bg-purple-600 text-white shadow-lg shadow-purple-950/30"
+                : "text-zinc-500 hover:text-white"
+            }`}
+          >
+            Media Streams
+          </button>
+          <button
+            onClick={() => setActiveTab("models")}
+            className={`h-9 px-6 rounded-xl font-black text-xs uppercase tracking-wider transition-all duration-300 ${
+              activeTab === "models"
+                ? "bg-pink-650 text-white shadow-lg shadow-pink-950/30"
+                : "text-zinc-500 hover:text-white"
+            }`}
+          >
+            VIP Model Registry
+          </button>
+        </div>
+
         {/* Analytics Grid */}
         <section className="grid grid-cols-2 md:grid-cols-4 gap-6">
           {[
@@ -347,455 +510,767 @@ export default function AdminPanelClient({
           ))}
         </section>
 
-        {/* Two Columns: upload form on left, catalog manager list on right */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          
-          {/* Left Column: Upload Form (Takes 1 col on lg) */}
-          <div className="lg:col-span-1 space-y-6">
-            <div className="p-6 rounded-3xl glass-panel bg-zinc-900/10 border border-white/5 space-y-5">
-              <h2 className="text-base font-black text-white tracking-wide flex items-center gap-1.5">
-                <PlusCircle className="h-5 w-5 text-purple-400" />
-                Publish Video Stream
-              </h2>
+        {activeTab === "media" ? (
+          /* Media tab columns */
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            
+            {/* Left Column: Upload Form (Takes 1 col on lg) */}
+            <div className="lg:col-span-1 space-y-6">
+              <div className="p-6 rounded-3xl glass-panel bg-zinc-900/10 border border-white/5 space-y-5">
+                <h2 className="text-base font-black text-white tracking-wide flex items-center gap-1.5">
+                  <PlusCircle className="h-5 w-5 text-purple-400" />
+                  Publish Video Stream
+                </h2>
 
-              {/* Status notifications */}
-              {formError && (
-                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/25 text-[11px] text-rose-400 text-center font-semibold animate-shake">
-                  {formError}
-                </div>
-              )}
-              {formSuccess && (
-                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-[11px] text-emerald-400 text-center font-semibold flex items-center justify-center gap-1">
-                  <CheckCircle className="h-4 w-4 shrink-0" />
-                  {formSuccess}
-                </div>
-              )}
+                {/* Status notifications */}
+                {formError && (
+                  <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/25 text-[11px] text-rose-400 text-center font-semibold animate-shake">
+                    {formError}
+                  </div>
+                )}
+                {formSuccess && (
+                  <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-[11px] text-emerald-400 text-center font-semibold flex items-center justify-center gap-1">
+                    <CheckCircle className="h-4 w-4 shrink-0" />
+                    {formSuccess}
+                  </div>
+                )}
 
-              <form onSubmit={handleUploadSubmit} className="space-y-4">
-                
-                {/* Title */}
-                <div className="space-y-1 text-left">
-                  <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest pl-1">Video Title</label>
-                  <input
-                    type="text"
-                    required
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="e.g. Sintel - Legendary Fantasy"
-                    className="w-full h-9 px-3 rounded-xl bg-zinc-950 border border-white/5 text-xs text-zinc-200 focus:outline-none focus:border-purple-500 transition-colors"
-                  />
-                </div>
-
-                {/* Description */}
-                <div className="space-y-1 text-left">
-                  <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest pl-1">Movie Synopsis</label>
-                  <textarea
-                    required
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Provide cinematic details and summary..."
-                    className="w-full min-h-[70px] p-3 rounded-xl bg-zinc-950 border border-white/5 text-xs text-zinc-200 focus:outline-none focus:border-purple-500 transition-colors"
-                  />
-                </div>
-
-                {/* Category & Duration row */}
-                <div className="grid grid-cols-2 gap-4">
+                <form onSubmit={handleUploadSubmit} className="space-y-4">
+                  
+                  {/* Title */}
                   <div className="space-y-1 text-left">
-                    <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest pl-1">Genre Category</label>
+                    <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest pl-1">Video Title</label>
+                    <input
+                      type="text"
+                      required
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      placeholder="e.g. Sintel - Legendary Fantasy"
+                      className="w-full h-9 px-3 rounded-xl bg-zinc-950 border border-white/5 text-xs text-zinc-200 focus:outline-none focus:border-purple-500 transition-colors"
+                    />
+                  </div>
+
+                  {/* Description */}
+                  <div className="space-y-1 text-left">
+                    <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest pl-1">Movie Synopsis</label>
+                    <textarea
+                      required
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      placeholder="Provide cinematic details and summary..."
+                      className="w-full min-h-[70px] p-3 rounded-xl bg-zinc-950 border border-white/5 text-xs text-zinc-200 focus:outline-none focus:border-purple-500 transition-colors"
+                    />
+                  </div>
+
+                  {/* Category & Duration row */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1 text-left">
+                      <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest pl-1">Genre Category</label>
+                      <select
+                        value={category}
+                        onChange={(e) => setCategory(e.target.value)}
+                        className="w-full h-9 px-3 rounded-xl bg-zinc-950 border border-white/5 text-xs text-zinc-200 focus:outline-none focus:border-purple-500 transition-colors"
+                      >
+                        {categoriesList.map((cat) => (
+                          <option key={cat.id} value={cat.name}>{cat.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-1 text-left">
+                      <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest pl-1">Duration Length</label>
+                      <input
+                        type="text"
+                        required
+                        value={duration}
+                        onChange={(e) => setDuration(e.target.value)}
+                        placeholder="e.g. 14m 48s"
+                        className="w-full h-9 px-3 rounded-xl bg-zinc-950 border border-white/5 text-xs text-zinc-200 focus:outline-none focus:border-purple-500 transition-colors"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Tags */}
+                  <div className="space-y-1 text-left">
+                    <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest pl-1">Comma-separated tags</label>
+                    <input
+                      type="text"
+                      required
+                      value={tags}
+                      onChange={(e) => setTags(e.target.value)}
+                      placeholder="e.g. fantasy, dragon, animation, 4k"
+                      className="w-full h-9 px-3 rounded-xl bg-zinc-950 border border-white/5 text-xs text-zinc-200 focus:outline-none focus:border-purple-500 transition-colors"
+                    />
+                  </div>
+
+                  {/* Video Stream Selector Block */}
+                  <div className="space-y-2 text-left">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest pl-1">Video Stream Content</label>
+                      <div className="flex bg-zinc-950 p-0.5 rounded-lg border border-white/5">
+                        <button
+                          type="button"
+                          onClick={() => setVideoSource("file")}
+                          className={`px-2.5 py-1 text-[9px] font-bold rounded-md transition-all ${
+                            videoSource === "file" ? "bg-purple-600 text-white" : "text-zinc-500 hover:text-zinc-300"
+                          }`}
+                        >
+                          Local File
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setVideoSource("url")}
+                          className={`px-2.5 py-1 text-[9px] font-bold rounded-md transition-all ${
+                            videoSource === "url" ? "bg-purple-600 text-white" : "text-zinc-500 hover:text-zinc-300"
+                          }`}
+                        >
+                          Remote URL
+                        </button>
+                      </div>
+                    </div>
+
+                    {videoSource === "file" ? (
+                      <div
+                        onDragEnter={handleVideoDrag}
+                        onDragOver={handleVideoDrag}
+                        onDragLeave={handleVideoDrag}
+                        onDrop={handleVideoDrop}
+                        className={`relative flex flex-col items-center justify-center p-6 rounded-2xl border-2 border-dashed bg-zinc-950/40 text-center transition-all cursor-pointer ${
+                          videoDragActive ? "border-purple-500 bg-purple-500/5" : "border-white/5 hover:border-purple-500/20"
+                        }`}
+                        onClick={() => document.getElementById("video-file-input")?.click()}
+                      >
+                        <input
+                          id="video-file-input"
+                          type="file"
+                          accept="video/*"
+                          className="hidden"
+                          onChange={handleVideoChange}
+                        />
+                        
+                        {videoFile ? (
+                          <div className="space-y-1">
+                            <CheckCircle className="h-7 w-7 text-emerald-400 mx-auto animate-pulse" />
+                            <p className="text-xs font-bold text-zinc-200 line-clamp-1 max-w-[200px]">{videoFile.name}</p>
+                            <p className="text-[10px] text-zinc-500 font-semibold">{(videoFile.size / (1024 * 1024)).toFixed(2)} MB</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-1.5">
+                            <PlusCircle className="h-6 w-6 text-zinc-600 mx-auto" />
+                            <p className="text-[11px] font-bold text-zinc-400">Drag & drop video, or click to browse</p>
+                            <p className="text-[9px] text-zinc-600 font-medium">MP4, MOV, WEBM (up to 500MB)</p>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <input
+                        type="url"
+                        value={videoUrl}
+                        onChange={(e) => setVideoUrl(e.target.value)}
+                        placeholder="https://domain.com/path/video.mp4"
+                        className="w-full h-9 px-3 rounded-xl bg-zinc-950 border border-white/5 text-xs text-purple-300 focus:outline-none focus:border-purple-500 transition-colors"
+                      />
+                    )}
+                  </div>
+
+                  {/* Thumbnail Image Selector Block */}
+                  <div className="space-y-2 text-left">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest pl-1">Thumbnail Cover Photo</label>
+                      <div className="flex bg-zinc-950 p-0.5 rounded-lg border border-white/5">
+                        <button
+                          type="button"
+                          onClick={() => setThumbSource("auto")}
+                          className={`px-2 py-1 text-[9px] font-bold rounded-md transition-all ${
+                            thumbSource === "auto" ? "bg-indigo-600 text-white" : "text-zinc-500 hover:text-zinc-300"
+                          }`}
+                        >
+                          Auto-Capture
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setThumbSource("file")}
+                          className={`px-2.5 py-1 text-[9px] font-bold rounded-md transition-all ${
+                            thumbSource === "file" ? "bg-indigo-600 text-white" : "text-zinc-500 hover:text-zinc-300"
+                          }`}
+                        >
+                          Local Photo
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setThumbSource("url")}
+                          className={`px-2.5 py-1 text-[9px] font-bold rounded-md transition-all ${
+                            thumbSource === "url" ? "bg-indigo-600 text-white" : "text-zinc-500 hover:text-zinc-300"
+                          }`}
+                        >
+                          Remote URL
+                        </button>
+                      </div>
+                    </div>
+
+                    {thumbSource === "auto" ? (
+                      <div className="relative flex flex-col items-center justify-center p-3 rounded-2xl border border-white/5 bg-zinc-950/40 text-center min-h-[120px]">
+                        {isGeneratingThumb ? (
+                          <div className="space-y-2">
+                            <div className="h-6 w-6 rounded-full border-2 border-indigo-500/20 border-t-indigo-500 animate-spin mx-auto" />
+                            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Capturing video frame...</p>
+                          </div>
+                        ) : autoThumbnailPreview ? (
+                          <div className="relative group w-full max-w-[200px] aspect-video rounded-xl overflow-hidden border border-white/10 shadow-lg">
+                            <img
+                              src={autoThumbnailPreview}
+                              alt="Auto Captured Thumbnail"
+                              className="w-full h-full object-cover"
+                            />
+                            <div className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                              <span className="text-[10px] text-emerald-400 font-black uppercase tracking-wider flex items-center gap-1">
+                                <CheckCircle className="h-3.5 w-3.5" /> Frame Captured
+                              </span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-1.5 p-4 text-center">
+                            <AlertTriangle className="h-5 w-5 text-amber-500/80 mx-auto animate-bounce" />
+                            <p className="text-[10px] text-zinc-400 font-bold">Select a local video file first</p>
+                            <p className="text-[9px] text-zinc-600">The platform will capture a frame automatically!</p>
+                          </div>
+                        )}
+                      </div>
+                    ) : thumbSource === "file" ? (
+                      <div
+                        onDragEnter={handleThumbDrag}
+                        onDragOver={handleThumbDrag}
+                        onDragLeave={handleThumbDrag}
+                        onDrop={handleThumbDrop}
+                        className={`relative flex flex-col items-center justify-center p-6 rounded-2xl border-2 border-dashed bg-zinc-950/40 text-center transition-all cursor-pointer ${
+                          thumbDragActive ? "border-indigo-500 bg-indigo-500/5" : "border-white/5 hover:border-indigo-500/20"
+                        }`}
+                        onClick={() => document.getElementById("thumb-file-input")?.click()}
+                      >
+                        <input
+                          id="thumb-file-input"
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleThumbChange}
+                        />
+                        
+                        {thumbFile ? (
+                          <div className="space-y-1">
+                            <CheckCircle className="h-7 w-7 text-emerald-400 mx-auto animate-pulse" />
+                            <p className="text-xs font-bold text-zinc-200 line-clamp-1 max-w-[200px]">{thumbFile.name}</p>
+                            <p className="text-[10px] text-zinc-500 font-semibold">{(thumbFile.size / (1024 * 1024)).toFixed(2)} MB</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-1.5">
+                            <PlusCircle className="h-6 w-6 text-zinc-600 mx-auto" />
+                            <p className="text-[11px] font-bold text-zinc-400">Drag & drop photo, or click to browse</p>
+                            <p className="text-[9px] text-zinc-600 font-medium">PNG, JPG, WEBP (up to 15MB)</p>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <input
+                        type="url"
+                        value={thumbnail}
+                        onChange={(e) => setThumbnail(e.target.value)}
+                        placeholder="https://images.unsplash.com/... or absolute path"
+                        className="w-full h-9 px-3 rounded-xl bg-zinc-950 border border-white/5 text-xs text-indigo-300 focus:outline-none focus:border-purple-500 transition-colors"
+                      />
+                    )}
+                  </div>
+
+                  {/* Qualities */}
+                  <div className="space-y-1 text-left">
+                    <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest pl-1">Enabled Qualities (comma list)</label>
+                    <input
+                      type="text"
+                      value={qualities}
+                      onChange={(e) => setQualities(e.target.value)}
+                      placeholder="1080p,720p"
+                      className="w-full h-9 px-3 rounded-xl bg-zinc-950 border border-white/5 text-xs text-zinc-300 focus:outline-none focus:border-purple-500 transition-colors"
+                    />
+                  </div>
+
+                  {/* Submit button */}
+                  <button
+                    type="submit"
+                    disabled={isPending}
+                    className="w-full flex items-center justify-center gap-1.5 h-10 rounded-xl bg-gradient-to-r from-red-600 to-purple-600 hover:from-red-500 hover:to-purple-500 font-bold text-xs text-white shadow-lg active:scale-95 transition-all duration-300 disabled:opacity-50"
+                  >
+                    {isPending ? (
+                      <div className="h-4 w-4 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+                    ) : (
+                      "Publish Content"
+                    )}
+                  </button>
+                </form>
+              </div>
+
+              {/* Manage Genre Categories Box */}
+              <div className="p-6 rounded-3xl glass-panel bg-zinc-900/10 border border-white/5 space-y-5">
+                <h2 className="text-base font-black text-white tracking-wide flex items-center gap-1.5">
+                  <PlusCircle className="h-5 w-5 text-indigo-400" />
+                  Manage Genre Categories
+                </h2>
+
+                {/* Status notifications */}
+                {catError && (
+                  <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/25 text-[11px] text-rose-400 text-center font-semibold animate-shake">
+                    {catError}
+                  </div>
+                )}
+                {catSuccess && (
+                  <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-[11px] text-emerald-400 text-center font-semibold flex items-center justify-center gap-1">
+                    <CheckCircle className="h-4 w-4 shrink-0" />
+                    {catSuccess}
+                  </div>
+                )}
+
+                {/* Category creation form */}
+                <form onSubmit={handleCategorySubmit} className="space-y-3">
+                  <div className="space-y-1 text-left">
+                    <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest pl-1">New Category Name</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        required
+                        value={newCategoryName}
+                        onChange={(e) => setNewCategoryName(e.target.value)}
+                        placeholder="e.g. Romance"
+                        className="flex-grow h-9 px-3 rounded-xl bg-zinc-950 border border-white/5 text-xs text-zinc-200 focus:outline-none focus:border-purple-500 transition-colors"
+                      />
+                      <button
+                        type="submit"
+                        disabled={categoryPending}
+                        className="h-9 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 font-bold text-xs text-white shadow-md active:scale-95 transition-all"
+                      >
+                        {categoryPending ? (
+                          <div className="h-4 w-4 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+                        ) : (
+                          "Create"
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </form>
+
+                {/* Categories list with delete button */}
+                <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
+                  <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest pl-1 block mb-1">Active Categories</label>
+                  {categoriesList.map((cat) => (
+                    <div 
+                      key={cat.id} 
+                      className="flex items-center justify-between p-2 rounded-xl bg-zinc-950/40 border border-white/5 text-xs text-zinc-200 hover:border-indigo-500/20 transition-all"
+                    >
+                      <span className="font-semibold">{cat.name}</span>
+                      <button
+                        onClick={() => handleCategoryDelete(cat.id, cat.name)}
+                        className="p-1 rounded-lg text-zinc-500 hover:text-red-400 transition-colors"
+                        title={`Delete category "${cat.name}"`}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+            </div>
+
+            {/* Right Column: Catalog Grid & Stats (Takes 2 cols on lg) */}
+            <div className="lg:col-span-2 space-y-6">
+              <div className="p-6 rounded-3xl glass-panel bg-zinc-900/10 border border-white/5 space-y-5">
+                <h2 className="text-base font-black text-white tracking-wide flex items-center gap-1.5">
+                  <BarChart3 className="h-5 w-5 text-purple-400" />
+                  Active Video Catalog ({catalog.length})
+                </h2>
+
+                {/* Video List catalog Table */}
+                <div className="overflow-x-auto rounded-2xl border border-white/5 bg-zinc-950/40">
+                  <table className="w-full border-collapse text-left text-xs text-zinc-300">
+                    <thead className="bg-[#121218]/80 text-zinc-400 font-bold uppercase tracking-wider text-[9px] border-b border-white/5">
+                      <tr>
+                        <th className="p-4">Cover & Title</th>
+                        <th className="p-4">Genre</th>
+                        <th className="p-4 text-center">Views</th>
+                        <th className="p-4 text-center">Likes</th>
+                        <th className="p-4 text-center">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {catalog.map((video) => (
+                        <tr key={video.id} className="hover:bg-white/5 transition-colors">
+                          
+                          {/* Cover and details */}
+                          <td className="p-4 flex items-center gap-3">
+                            <img
+                              src={video.thumbnail}
+                              alt={video.title}
+                              className="h-10 w-16 object-cover rounded-lg border border-white/10 shrink-0 bg-zinc-900"
+                            />
+                            <div className="min-w-0 max-w-[200px] sm:max-w-[280px]">
+                              <p className="font-bold text-zinc-200 truncate leading-snug">{video.title}</p>
+                              <p className="text-[10px] text-zinc-500 font-medium truncate mt-0.5">{video.duration} duration</p>
+                            </div>
+                          </td>
+
+                          {/* Category */}
+                          <td className="p-4">
+                            <span className="px-2 py-0.5 rounded-full bg-indigo-500/10 text-[9px] font-bold text-indigo-400">
+                              {video.category}
+                            </span>
+                          </td>
+
+                          {/* Views */}
+                          <td className="p-4 text-center font-semibold text-zinc-300">
+                            {video.views.toLocaleString()}
+                          </td>
+
+                          {/* Likes */}
+                          <td className="p-4 text-center font-semibold text-zinc-300">
+                            {video.likes.toLocaleString()}
+                          </td>
+
+                          {/* Delete action */}
+                          <td className="p-4 text-center">
+                            <button
+                              onClick={() => handleDeleteItem(video.id)}
+                              className="p-1.5 rounded-lg border border-red-500/10 text-red-400 hover:bg-red-500/10 transition-colors"
+                              title="Delete video record"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </td>
+
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* No items catalog fallback */}
+                {catalog.length === 0 && (
+                  <div className="text-center py-10 space-y-2">
+                    <AlertTriangle className="h-7 w-7 text-zinc-600 mx-auto" />
+                    <p className="text-xs text-zinc-500 font-bold">Catalog is completely empty.</p>
+                  </div>
+                )}
+
+              </div>
+            </div>
+
+          </div>
+        ) : (
+          /* Models tab columns */
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            
+            {/* Left Column: Model Form (Takes 1 col on lg) */}
+            <div className="lg:col-span-1 space-y-6">
+              <div className="p-6 rounded-3xl glass-panel bg-zinc-900/10 border border-white/5 space-y-5">
+                <h2 className="text-base font-black text-white tracking-wide flex items-center gap-1.5">
+                  <PlusCircle className="h-5 w-5 text-pink-400" />
+                  Add VIP Model Profile
+                </h2>
+
+                {/* Status notifications */}
+                {modelError && (
+                  <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/25 text-[11px] text-rose-400 text-center font-semibold animate-shake">
+                    {modelError}
+                  </div>
+                )}
+                {modelSuccess && (
+                  <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-[11px] text-emerald-400 text-center font-semibold flex items-center justify-center gap-1">
+                    <CheckCircle className="h-4 w-4 shrink-0" />
+                    {modelSuccess}
+                  </div>
+                )}
+
+                <form onSubmit={handleModelSubmit} className="space-y-4">
+                  
+                  {/* Name */}
+                  <div className="space-y-1 text-left">
+                    <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest pl-1">Companion Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={modelName}
+                      onChange={(e) => setModelName(e.target.value)}
+                      placeholder="e.g. Elena Rostova"
+                      className="w-full h-9 px-3 rounded-xl bg-zinc-950 border border-white/5 text-xs text-zinc-200 focus:outline-none focus:border-purple-500 transition-colors"
+                    />
+                  </div>
+
+                  {/* Age & City row */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1 text-left">
+                      <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest pl-1">Age *</label>
+                      <input
+                        type="number"
+                        required
+                        min="18"
+                        max="40"
+                        value={modelAge}
+                        onChange={(e) => setModelAge(Number(e.target.value))}
+                        className="w-full h-9 px-3 rounded-xl bg-zinc-950 border border-white/5 text-xs text-zinc-200 focus:outline-none focus:border-purple-500 transition-colors"
+                      />
+                    </div>
+                    <div className="space-y-1 text-left">
+                      <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest pl-1">City Location *</label>
+                      <select
+                        value={modelLocation}
+                        onChange={(e) => setModelLocation(e.target.value)}
+                        className="w-full h-9 px-3 rounded-xl bg-zinc-950 border border-white/5 text-xs text-zinc-200 focus:outline-none focus:border-purple-500 transition-colors"
+                      >
+                        {["Mumbai", "Delhi", "Goa", "Bengaluru", "Kolkata", "Pune", "Hyderabad"].map((loc) => (
+                          <option key={loc} value={loc}>{loc}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Category dropdown */}
+                  <div className="space-y-1 text-left">
+                    <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest pl-1">Companion Category *</label>
                     <select
-                      value={category}
-                      onChange={(e) => setCategory(e.target.value)}
+                      value={modelCategory}
+                      onChange={(e) => setModelCategory(e.target.value)}
                       className="w-full h-9 px-3 rounded-xl bg-zinc-950 border border-white/5 text-xs text-zinc-200 focus:outline-none focus:border-purple-500 transition-colors"
                     >
-                      {categoriesList.map((cat) => (
-                        <option key={cat.id} value={cat.name}>{cat.name}</option>
+                      {["VIP Russian", "Elite Local", "Celebrity Escort", "Supermodel"].map((cat) => (
+                        <option key={cat} value={cat}>{cat}</option>
                       ))}
                     </select>
                   </div>
+
+                  {/* Hourly & Daily rates row */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1 text-left">
+                      <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest pl-1">Rate Per Hour (₹) *</label>
+                      <input
+                        type="number"
+                        required
+                        min="1000"
+                        value={modelRatePerHour}
+                        onChange={(e) => setModelRatePerHour(Number(e.target.value))}
+                        className="w-full h-9 px-3 rounded-xl bg-zinc-950 border border-white/5 text-xs text-zinc-200 focus:outline-none focus:border-purple-500 transition-colors"
+                      />
+                    </div>
+                    <div className="space-y-1 text-left">
+                      <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest pl-1">Rate Per Day (₹) *</label>
+                      <input
+                        type="number"
+                        required
+                        min="5000"
+                        value={modelRatePerDay}
+                        onChange={(e) => setModelRatePerDay(Number(e.target.value))}
+                        className="w-full h-9 px-3 rounded-xl bg-zinc-950 border border-white/5 text-xs text-zinc-200 focus:outline-none focus:border-purple-500 transition-colors"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Bio */}
                   <div className="space-y-1 text-left">
-                    <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest pl-1">Duration Length</label>
-                    <input
-                      type="text"
+                    <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest pl-1">Bio Description *</label>
+                    <textarea
                       required
-                      value={duration}
-                      onChange={(e) => setDuration(e.target.value)}
-                      placeholder="e.g. 14m 48s"
-                      className="w-full h-9 px-3 rounded-xl bg-zinc-950 border border-white/5 text-xs text-zinc-200 focus:outline-none focus:border-purple-500 transition-colors"
+                      value={modelBio}
+                      onChange={(e) => setModelBio(e.target.value)}
+                      placeholder="e.g. Gorgeous elite companion with stunning elegance, friendly manners, and travel-ready availability..."
+                      className="w-full min-h-[70px] p-3 rounded-xl bg-zinc-950 border border-white/5 text-xs text-zinc-200 focus:outline-none focus:border-purple-500 transition-colors"
                     />
                   </div>
-                </div>
 
-                {/* Tags */}
-                <div className="space-y-1 text-left">
-                  <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest pl-1">Comma-separated tags</label>
-                  <input
-                    type="text"
-                    required
-                    value={tags}
-                    onChange={(e) => setTags(e.target.value)}
-                    placeholder="e.g. fantasy, dragon, animation, 4k"
-                    className="w-full h-9 px-3 rounded-xl bg-zinc-950 border border-white/5 text-xs text-zinc-200 focus:outline-none focus:border-purple-500 transition-colors"
-                  />
-                </div>
-
-                {/* Video Stream Selector Block */}
-                <div className="space-y-2 text-left">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest pl-1">Video Stream Content</label>
-                    <div className="flex bg-zinc-950 p-0.5 rounded-lg border border-white/5">
-                      <button
-                        type="button"
-                        onClick={() => setVideoSource("file")}
-                        className={`px-2.5 py-1 text-[9px] font-bold rounded-md transition-all ${
-                          videoSource === "file" ? "bg-purple-600 text-white" : "text-zinc-500 hover:text-zinc-300"
-                        }`}
-                      >
-                        Local File
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setVideoSource("url")}
-                        className={`px-2.5 py-1 text-[9px] font-bold rounded-md transition-all ${
-                          videoSource === "url" ? "bg-purple-600 text-white" : "text-zinc-500 hover:text-zinc-300"
-                        }`}
-                      >
-                        Remote URL
-                      </button>
+                  {/* Avatar upload or URL source */}
+                  <div className="space-y-2 text-left">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest pl-1">Profile Photo (Avatar) *</label>
+                      <div className="flex bg-zinc-950 p-0.5 rounded-lg border border-white/5">
+                        <button
+                          type="button"
+                          onClick={() => setModelAvatarSource("file")}
+                          className={`px-2.5 py-1 text-[9px] font-bold rounded-md transition-all ${
+                            modelAvatarSource === "file" ? "bg-pink-600 text-white" : "text-zinc-500 hover:text-zinc-300"
+                          }`}
+                        >
+                          Local File
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setModelAvatarSource("url")}
+                          className={`px-2.5 py-1 text-[9px] font-bold rounded-md transition-all ${
+                            modelAvatarSource === "url" ? "bg-pink-600 text-white" : "text-zinc-500 hover:text-zinc-300"
+                          }`}
+                        >
+                          Remote URL
+                        </button>
+                      </div>
                     </div>
-                  </div>
 
-                  {videoSource === "file" ? (
-                    <div
-                      onDragEnter={handleVideoDrag}
-                      onDragOver={handleVideoDrag}
-                      onDragLeave={handleVideoDrag}
-                      onDrop={handleVideoDrop}
-                      className={`relative flex flex-col items-center justify-center p-6 rounded-2xl border-2 border-dashed bg-zinc-950/40 text-center transition-all cursor-pointer ${
-                        videoDragActive ? "border-purple-500 bg-purple-500/5" : "border-white/5 hover:border-purple-500/20"
-                      }`}
-                      onClick={() => document.getElementById("video-file-input")?.click()}
-                    >
-                      <input
-                        id="video-file-input"
-                        type="file"
-                        accept="video/*"
-                        className="hidden"
-                        onChange={handleVideoChange}
-                      />
-                      
-                      {videoFile ? (
-                        <div className="space-y-1">
-                          <CheckCircle className="h-7 w-7 text-emerald-400 mx-auto animate-pulse" />
-                          <p className="text-xs font-bold text-zinc-200 line-clamp-1 max-w-[200px]">{videoFile.name}</p>
-                          <p className="text-[10px] text-zinc-500 font-semibold">{(videoFile.size / (1024 * 1024)).toFixed(2)} MB</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-1.5">
-                          <PlusCircle className="h-6 w-6 text-zinc-600 mx-auto" />
-                          <p className="text-[11px] font-bold text-zinc-400">Drag & drop video, or click to browse</p>
-                          <p className="text-[9px] text-zinc-600 font-medium">MP4, MOV, WEBM (up to 500MB)</p>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <input
-                      type="url"
-                      value={videoUrl}
-                      onChange={(e) => setVideoUrl(e.target.value)}
-                      placeholder="https://domain.com/path/video.mp4"
-                      className="w-full h-9 px-3 rounded-xl bg-zinc-950 border border-white/5 text-xs text-purple-300 focus:outline-none focus:border-purple-500 transition-colors"
-                    />
-                  )}
-                </div>
-
-                {/* Thumbnail Image Selector Block */}
-                <div className="space-y-2 text-left">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest pl-1">Thumbnail Cover Photo</label>
-                    <div className="flex bg-zinc-950 p-0.5 rounded-lg border border-white/5">
-                      <button
-                        type="button"
-                        onClick={() => setThumbSource("auto")}
-                        className={`px-2 py-1 text-[9px] font-bold rounded-md transition-all ${
-                          thumbSource === "auto" ? "bg-indigo-600 text-white" : "text-zinc-500 hover:text-zinc-300"
+                    {modelAvatarSource === "file" ? (
+                      <div
+                        onDragEnter={handleModelDrag}
+                        onDragOver={handleModelDrag}
+                        onDragLeave={handleModelDrag}
+                        onDrop={handleModelDrop}
+                        className={`relative flex flex-col items-center justify-center p-6 rounded-2xl border-2 border-dashed bg-zinc-950/40 text-center transition-all cursor-pointer ${
+                          modelDragActive ? "border-pink-500 bg-pink-500/5" : "border-white/5 hover:border-pink-500/20"
                         }`}
+                        onClick={() => document.getElementById("model-file-input")?.click()}
                       >
-                        Auto-Capture
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setThumbSource("file")}
-                        className={`px-2.5 py-1 text-[9px] font-bold rounded-md transition-all ${
-                          thumbSource === "file" ? "bg-indigo-600 text-white" : "text-zinc-500 hover:text-zinc-300"
-                        }`}
-                      >
-                        Local Photo
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setThumbSource("url")}
-                        className={`px-2.5 py-1 text-[9px] font-bold rounded-md transition-all ${
-                          thumbSource === "url" ? "bg-indigo-600 text-white" : "text-zinc-500 hover:text-zinc-300"
-                        }`}
-                      >
-                        Remote URL
-                      </button>
-                    </div>
-                  </div>
-
-                  {thumbSource === "auto" ? (
-                    <div className="relative flex flex-col items-center justify-center p-3 rounded-2xl border border-white/5 bg-zinc-950/40 text-center min-h-[120px]">
-                      {isGeneratingThumb ? (
-                        <div className="space-y-2">
-                          <div className="h-6 w-6 rounded-full border-2 border-indigo-500/20 border-t-indigo-500 animate-spin mx-auto" />
-                          <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Capturing video frame...</p>
-                        </div>
-                      ) : autoThumbnailPreview ? (
-                        <div className="relative group w-full max-w-[200px] aspect-video rounded-xl overflow-hidden border border-white/10 shadow-lg">
-                          <img
-                            src={autoThumbnailPreview}
-                            alt="Auto Captured Thumbnail"
-                            className="w-full h-full object-cover"
-                          />
-                          <div className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                            <span className="text-[10px] text-emerald-400 font-black uppercase tracking-wider flex items-center gap-1">
-                              <CheckCircle className="h-3.5 w-3.5" /> Frame Captured
-                            </span>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="space-y-1.5 p-4 text-center">
-                          <AlertTriangle className="h-5 w-5 text-amber-500/80 mx-auto animate-bounce" />
-                          <p className="text-[10px] text-zinc-400 font-bold">Select a local video file first</p>
-                          <p className="text-[9px] text-zinc-600">The platform will capture a frame automatically!</p>
-                        </div>
-                      )}
-                    </div>
-                  ) : thumbSource === "file" ? (
-                    <div
-                      onDragEnter={handleThumbDrag}
-                      onDragOver={handleThumbDrag}
-                      onDragLeave={handleThumbDrag}
-                      onDrop={handleThumbDrop}
-                      className={`relative flex flex-col items-center justify-center p-6 rounded-2xl border-2 border-dashed bg-zinc-950/40 text-center transition-all cursor-pointer ${
-                        thumbDragActive ? "border-indigo-500 bg-indigo-500/5" : "border-white/5 hover:border-indigo-500/20"
-                      }`}
-                      onClick={() => document.getElementById("thumb-file-input")?.click()}
-                    >
-                      <input
-                        id="thumb-file-input"
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={handleThumbChange}
-                      />
-                      
-                      {thumbFile ? (
-                        <div className="space-y-1">
-                          <CheckCircle className="h-7 w-7 text-emerald-400 mx-auto animate-pulse" />
-                          <p className="text-xs font-bold text-zinc-200 line-clamp-1 max-w-[200px]">{thumbFile.name}</p>
-                          <p className="text-[10px] text-zinc-500 font-semibold">{(thumbFile.size / (1024 * 1024)).toFixed(2)} MB</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-1.5">
-                          <PlusCircle className="h-6 w-6 text-zinc-600 mx-auto" />
-                          <p className="text-[11px] font-bold text-zinc-400">Drag & drop photo, or click to browse</p>
-                          <p className="text-[9px] text-zinc-600 font-medium">PNG, JPG, WEBP (up to 15MB)</p>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <input
-                      type="url"
-                      value={thumbnail}
-                      onChange={(e) => setThumbnail(e.target.value)}
-                      placeholder="https://images.unsplash.com/... or absolute path"
-                      className="w-full h-9 px-3 rounded-xl bg-zinc-950 border border-white/5 text-xs text-indigo-300 focus:outline-none focus:border-purple-500 transition-colors"
-                    />
-                  )}
-                </div>
-
-                {/* Qualities */}
-                <div className="space-y-1 text-left">
-                  <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest pl-1">Enabled Qualities (comma list)</label>
-                  <input
-                    type="text"
-                    value={qualities}
-                    onChange={(e) => setQualities(e.target.value)}
-                    placeholder="1080p,720p"
-                    className="w-full h-9 px-3 rounded-xl bg-zinc-950 border border-white/5 text-xs text-zinc-300 focus:outline-none focus:border-purple-500 transition-colors"
-                  />
-                </div>
-
-                {/* Submit button */}
-                <button
-                  type="submit"
-                  disabled={isPending}
-                  className="w-full flex items-center justify-center gap-1.5 h-10 rounded-xl bg-gradient-to-r from-red-600 to-purple-600 hover:from-red-500 hover:to-purple-500 font-bold text-xs text-white shadow-lg active:scale-95 transition-all duration-300 disabled:opacity-50"
-                >
-                  {isPending ? (
-                    <div className="h-4 w-4 rounded-full border-2 border-white/20 border-t-white animate-spin" />
-                  ) : (
-                    "Publish Content"
-                  )}
-                </button>
-              </form>
-            </div>
-
-            {/* Manage Genre Categories Box */}
-            <div className="p-6 rounded-3xl glass-panel bg-zinc-900/10 border border-white/5 space-y-5">
-              <h2 className="text-base font-black text-white tracking-wide flex items-center gap-1.5">
-                <PlusCircle className="h-5 w-5 text-indigo-400" />
-                Manage Genre Categories
-              </h2>
-
-              {/* Status notifications */}
-              {catError && (
-                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/25 text-[11px] text-rose-400 text-center font-semibold animate-shake">
-                  {catError}
-                </div>
-              )}
-              {catSuccess && (
-                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-[11px] text-emerald-400 text-center font-semibold flex items-center justify-center gap-1">
-                  <CheckCircle className="h-4 w-4 shrink-0" />
-                  {catSuccess}
-                </div>
-              )}
-
-              {/* Category creation form */}
-              <form onSubmit={handleCategorySubmit} className="space-y-3">
-                <div className="space-y-1 text-left">
-                  <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest pl-1">New Category Name</label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      required
-                      value={newCategoryName}
-                      onChange={(e) => setNewCategoryName(e.target.value)}
-                      placeholder="e.g. Romance"
-                      className="flex-grow h-9 px-3 rounded-xl bg-zinc-950 border border-white/5 text-xs text-zinc-200 focus:outline-none focus:border-purple-500 transition-colors"
-                    />
-                    <button
-                      type="submit"
-                      disabled={categoryPending}
-                      className="h-9 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 font-bold text-xs text-white shadow-md active:scale-95 transition-all"
-                    >
-                      {categoryPending ? (
-                        <div className="h-4 w-4 rounded-full border-2 border-white/20 border-t-white animate-spin" />
-                      ) : (
-                        "Create"
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </form>
-
-              {/* Categories list with delete button */}
-              <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
-                <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest pl-1 block mb-1">Active Categories</label>
-                {categoriesList.map((cat) => (
-                  <div 
-                    key={cat.id} 
-                    className="flex items-center justify-between p-2 rounded-xl bg-zinc-950/40 border border-white/5 text-xs text-zinc-200 hover:border-indigo-500/20 transition-all"
-                  >
-                    <span className="font-semibold">{cat.name}</span>
-                    <button
-                      onClick={() => handleCategoryDelete(cat.id, cat.name)}
-                      className="p-1 rounded-lg text-zinc-500 hover:text-red-400 transition-colors"
-                      title={`Delete category "${cat.name}"`}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-          </div>
-
-          {/* Right Column: Catalog Grid & Stats (Takes 2 cols on lg) */}
-          <div className="lg:col-span-2 space-y-6">
-            <div className="p-6 rounded-3xl glass-panel bg-zinc-900/10 border border-white/5 space-y-5">
-              <h2 className="text-base font-black text-white tracking-wide flex items-center gap-1.5">
-                <BarChart3 className="h-5 w-5 text-purple-400" />
-                Active Video Catalog ({catalog.length})
-              </h2>
-
-              {/* Video List catalog Table */}
-              <div className="overflow-x-auto rounded-2xl border border-white/5 bg-zinc-950/40">
-                <table className="w-full border-collapse text-left text-xs text-zinc-300">
-                  <thead className="bg-[#121218]/80 text-zinc-400 font-bold uppercase tracking-wider text-[9px] border-b border-white/5">
-                    <tr>
-                      <th className="p-4">Cover & Title</th>
-                      <th className="p-4">Genre</th>
-                      <th className="p-4 text-center">Views</th>
-                      <th className="p-4 text-center">Likes</th>
-                      <th className="p-4 text-center">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5">
-                    {catalog.map((video) => (
-                      <tr key={video.id} className="hover:bg-white/5 transition-colors">
+                        <input
+                          id="model-file-input"
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleModelChange}
+                        />
                         
-                        {/* Cover and details */}
-                        <td className="p-4 flex items-center gap-3">
-                          <img
-                            src={video.thumbnail}
-                            alt={video.title}
-                            className="h-10 w-16 object-cover rounded-lg border border-white/10 shrink-0 bg-zinc-900"
-                          />
-                          <div className="min-w-0 max-w-[200px] sm:max-w-[280px]">
-                            <p className="font-bold text-zinc-200 truncate leading-snug">{video.title}</p>
-                            <p className="text-[10px] text-zinc-500 font-medium truncate mt-0.5">{video.duration} duration</p>
+                        {modelAvatarFile ? (
+                          <div className="space-y-1">
+                            <CheckCircle className="h-7 w-7 text-emerald-400 mx-auto animate-pulse" />
+                            <p className="text-xs font-bold text-zinc-200 line-clamp-1 max-w-[200px]">{modelAvatarFile.name}</p>
+                            <p className="text-[10px] text-zinc-500 font-semibold">{(modelAvatarFile.size / (1024 * 1024)).toFixed(2)} MB</p>
                           </div>
-                        </td>
+                        ) : (
+                          <div className="space-y-1.5">
+                            <ImageIcon className="h-6 w-6 text-zinc-600 mx-auto" />
+                            <p className="text-[11px] font-bold text-zinc-400">Drag & drop photo, or click to browse</p>
+                            <p className="text-[9px] text-zinc-600 font-medium">PNG, JPG, WEBP (up to 15MB)</p>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <input
+                        type="url"
+                        value={modelAvatarUrl}
+                        onChange={(e) => setModelAvatarUrl(e.target.value)}
+                        placeholder="https://images.unsplash.com/... or absolute path"
+                        className="w-full h-9 px-3 rounded-xl bg-zinc-950 border border-white/5 text-xs text-pink-300 focus:outline-none focus:border-purple-500 transition-colors"
+                      />
+                    )}
+                  </div>
 
-                        {/* Category */}
-                        <td className="p-4">
-                          <span className="px-2 py-0.5 rounded-full bg-indigo-500/10 text-[9px] font-bold text-indigo-400">
-                            {video.category}
-                          </span>
-                        </td>
+                  {/* Gallery URLs */}
+                  <div className="space-y-1 text-left">
+                    <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest pl-1">Gallery Photos (comma URLs)</label>
+                    <input
+                      type="text"
+                      value={modelGalleryUrls}
+                      onChange={(e) => setModelGalleryUrls(e.target.value)}
+                      placeholder="https://images.unsplash.com/1, https://images.unsplash.com/2"
+                      className="w-full h-9 px-3 rounded-xl bg-zinc-950 border border-white/5 text-xs text-zinc-300 focus:outline-none focus:border-purple-500 transition-colors"
+                    />
+                  </div>
 
-                        {/* Views */}
-                        <td className="p-4 text-center font-semibold text-zinc-300">
-                          {video.views.toLocaleString()}
-                        </td>
-
-                        {/* Likes */}
-                        <td className="p-4 text-center font-semibold text-zinc-300">
-                          {video.likes.toLocaleString()}
-                        </td>
-
-                        {/* Delete action */}
-                        <td className="p-4 text-center">
-                          <button
-                            onClick={() => handleDeleteItem(video.id)}
-                            className="p-1.5 rounded-lg border border-red-500/10 text-red-400 hover:bg-red-500/10 transition-colors"
-                            title="Delete video record"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </td>
-
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                  {/* Submit button */}
+                  <button
+                    type="submit"
+                    disabled={modelPending}
+                    className="w-full flex items-center justify-center gap-1.5 h-10 rounded-xl bg-gradient-to-r from-pink-650 to-purple-650 hover:from-pink-500 hover:to-purple-500 font-bold text-xs text-white shadow-lg active:scale-95 transition-all duration-300 disabled:opacity-50"
+                  >
+                    {modelPending ? (
+                      <div className="h-4 w-4 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+                    ) : (
+                      "Publish VIP Companion"
+                    )}
+                  </button>
+                </form>
               </div>
-
-              {/* No items catalog fallback */}
-              {catalog.length === 0 && (
-                <div className="text-center py-10 space-y-2">
-                  <AlertTriangle className="h-7 w-7 text-zinc-600 mx-auto" />
-                  <p className="text-xs text-zinc-500 font-bold">Catalog is completely empty.</p>
-                </div>
-              )}
-
             </div>
-          </div>
 
-        </div>
+            {/* Right Column: Models Registry Grid & Actions (Takes 2 cols on lg) */}
+            <div className="lg:col-span-2 space-y-6">
+              <div className="p-6 rounded-3xl glass-panel bg-zinc-900/10 border border-white/5 space-y-5">
+                <h2 className="text-base font-black text-white tracking-wide flex items-center gap-1.5">
+                  <BarChart3 className="h-5 w-5 text-pink-400" />
+                  VIP Model Registry ({girls.length})
+                </h2>
+
+                {/* Models List Table */}
+                <div className="overflow-x-auto rounded-2xl border border-white/5 bg-zinc-950/40">
+                  <table className="w-full border-collapse text-left text-xs text-zinc-300 font-medium">
+                    <thead className="bg-[#121218]/80 text-zinc-400 font-bold uppercase tracking-wider text-[9px] border-b border-white/5">
+                      <tr>
+                        <th className="p-4">Avatar & Name</th>
+                        <th className="p-4">Category</th>
+                        <th className="p-4">Location</th>
+                        <th className="p-4 text-center">Hourly Rate</th>
+                        <th className="p-4 text-center">Daily Rate</th>
+                        <th className="p-4 text-center">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {girls.map((girl) => (
+                        <tr key={girl.id} className="hover:bg-white/5 transition-colors">
+                          
+                          {/* Avatar & Name */}
+                          <td className="p-4 flex items-center gap-3">
+                            <img
+                              src={girl.avatar}
+                              alt={girl.name}
+                              className="h-10 w-10 object-cover rounded-full border border-white/10 shrink-0 bg-zinc-900 shadow-md"
+                            />
+                            <div className="min-w-0 max-w-[150px] sm:max-w-[200px]">
+                              <p className="font-bold text-zinc-200 truncate leading-snug">{girl.name}</p>
+                              <p className="text-[10px] text-zinc-500 font-medium truncate mt-0.5">{girl.age} Years Old</p>
+                            </div>
+                          </td>
+
+                          {/* Category */}
+                          <td className="p-4">
+                            <span className="px-2.5 py-0.5 rounded-full bg-pink-500/10 text-[9px] font-bold text-pink-400 uppercase tracking-wider">
+                              {girl.category}
+                            </span>
+                          </td>
+
+                          {/* Location */}
+                          <td className="p-4 font-semibold text-zinc-400">
+                            <span className="flex items-center gap-1">
+                              <MapPin className="h-3 w-3 text-zinc-500" />
+                              {girl.location}
+                            </span>
+                          </td>
+
+                          {/* Hourly Rate */}
+                          <td className="p-4 text-center font-bold text-white">
+                            ₹{girl.ratePerHour.toLocaleString('en-IN')}
+                          </td>
+
+                          {/* Daily Rate */}
+                          <td className="p-4 text-center font-bold text-pink-300">
+                            ₹{girl.ratePerDay.toLocaleString('en-IN')}
+                          </td>
+
+                          {/* Delete action */}
+                          <td className="p-4 text-center">
+                            <button
+                              onClick={() => handleDeleteGirl(girl.id, girl.name)}
+                              className="p-1.5 rounded-lg border border-red-500/10 text-red-400 hover:bg-red-500/10 transition-colors"
+                              title="Delete VIP companion profile"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </td>
+
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* No items fallback */}
+                {girls.length === 0 && (
+                  <div className="text-center py-10 space-y-2">
+                    <AlertTriangle className="h-7 w-7 text-zinc-650 mx-auto animate-bounce" />
+                    <p className="text-xs text-zinc-500 font-bold">No companion models registered yet.</p>
+                  </div>
+                )}
+
+              </div>
+            </div>
+
+          </div>
+        )}
 
       </main>
 

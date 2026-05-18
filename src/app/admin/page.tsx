@@ -45,12 +45,18 @@ export default async function AdminPage() {
       orderBy: { name: "asc" },
     });
 
+    // 4. Fetch VIP companion models
+    const girls = await prisma.girl.findMany({
+      orderBy: { name: "asc" },
+    });
+
     return (
       <AdminPanelClient
         user={user}
         analytics={analytics}
         catalog={catalog}
         categoriesList={categoriesList}
+        initialGirls={girls}
       />
     );
   } catch (error: any) {
